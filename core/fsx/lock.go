@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -29,34 +30,45 @@ func AcquireLock(path, owner string) (*FileLock, error) {
 
 // AcquireLockWithOptions creates a lock file and can reclaim stale lock files.
 func AcquireLockWithOptions(path, owner string, opts LockOptions) (*FileLock, error) {
+	lockPath, err := NormalizeAbsolutePath(path)
+	if err != nil {
+		return nil, fmt.Errorf("invalid lock path: %w", err)
+	}
 	now := opts.Now
 	if now == nil {
 		now = time.Now
 	}
+	lockDir := filepath.Dir(lockPath)
+	lockFile := filepath.Base(lockPath)
 
 	claim := func() (*FileLock, error) {
-		// #nosec G304 -- caller passes a store-scoped lock path after job_id validation.
-		file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		root, err := os.OpenRoot(lockDir)
+		if err != nil {
+			return nil, fmt.Errorf("open lock root: %w", err)
+		}
+		defer func() { _ = root.Close() }()
+
+		file, err := root.OpenFile(lockFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 		if err != nil {
 			return nil, err
 		}
 
 		if _, err := file.WriteString(owner + "\n"); err != nil {
 			_ = file.Close()
-			_ = os.Remove(path)
+			_ = root.Remove(lockFile)
 			return nil, fmt.Errorf("write lock owner: %w", err)
 		}
 		if err := file.Sync(); err != nil {
 			_ = file.Close()
-			_ = os.Remove(path)
+			_ = root.Remove(lockFile)
 			return nil, fmt.Errorf("sync lock file: %w", err)
 		}
 		if err := file.Close(); err != nil {
-			_ = os.Remove(path)
+			_ = root.Remove(lockFile)
 			return nil, fmt.Errorf("close lock file: %w", err)
 		}
 
-		return &FileLock{path: path, owner: owner}, nil
+		return &FileLock{path: lockPath, owner: owner}, nil
 	}
 
 	lock, err := claim()
@@ -68,11 +80,11 @@ func AcquireLockWithOptions(path, owner string, opts LockOptions) (*FileLock, er
 	}
 
 	if opts.StaleAfter > 0 {
-		info, statErr := os.Stat(path)
+		info, statErr := os.Stat(lockPath)
 		if statErr == nil && now().UTC().Sub(info.ModTime().UTC()) >= opts.StaleAfter {
-			lockOwner, ownerErr := readLockOwner(path)
+			lockOwner, ownerErr := readLockOwner(lockPath)
 			if ownerErr == nil && lockOwnerIsDead(lockOwner) {
-				if rmErr := os.Remove(path); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) {
+				if rmErr := os.Remove(lockPath); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) {
 					return nil, fmt.Errorf("remove stale lock: %w", rmErr)
 				}
 				lock, err = claim()
@@ -93,15 +105,27 @@ func (l *FileLock) Release() error {
 	if l == nil {
 		return nil
 	}
-	if err := os.Remove(l.path); err != nil && !errors.Is(err, os.ErrNotExist) {
+	lockPath, err := NormalizeAbsolutePath(l.path)
+	if err != nil {
+		return fmt.Errorf("release lock: %w", err)
+	}
+	if err := os.Remove(lockPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("release lock: %w", err)
 	}
 	return nil
 }
 
 func readLockOwner(path string) (string, error) {
-	// #nosec G304 -- caller passes a store-scoped lock path after job_id validation.
-	data, err := os.ReadFile(path)
+	lockPath, err := NormalizeAbsolutePath(path)
+	if err != nil {
+		return "", fmt.Errorf("invalid lock path: %w", err)
+	}
+	root, err := os.OpenRoot(filepath.Dir(lockPath))
+	if err != nil {
+		return "", fmt.Errorf("open lock root: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+	data, err := root.ReadFile(filepath.Base(lockPath))
 	if err != nil {
 		return "", err
 	}

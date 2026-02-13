@@ -57,9 +57,20 @@ func TestDemoAndDoctorCommands(t *testing.T) {
 func TestSubmitAndBridgeWorkItemDryRun(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	workspace := t.TempDir()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(workspace); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(orig)
+	})
 	now := time.Date(2026, 2, 14, 3, 15, 0, 0, time.UTC)
 
-	specPath := filepath.Join(t.TempDir(), "jobspec.yaml")
+	specPath := filepath.Join(workspace, "jobspec.yaml")
 	spec := `schema_id: wrkr.jobspec
 schema_version: v1
 created_at: "2026-02-14T03:15:00Z"
@@ -152,9 +163,20 @@ environment_fingerprint:
 func TestReferenceAdapterSubmitResumeAcceptExportFlow(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	workspace := t.TempDir()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(workspace); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(orig)
+	})
 	now := time.Date(2026, 2, 14, 3, 45, 0, 0, time.UTC)
 
-	specPath := filepath.Join(t.TempDir(), "jobspec_flow.yaml")
+	specPath := filepath.Join(workspace, "jobspec_flow.yaml")
 	spec := `schema_id: wrkr.jobspec
 schema_version: v1
 created_at: "2026-02-14T03:45:00Z"
@@ -216,7 +238,7 @@ environment_fingerprint:
 		t.Fatalf("unexpected resume output: %s", out.String())
 	}
 
-	configPath := filepath.Join(t.TempDir(), "accept.yaml")
+	configPath := filepath.Join(workspace, "accept.yaml")
 	if err := os.WriteFile(configPath, []byte(`schema_id: wrkr.accept_config
 schema_version: v1
 required_artifacts:

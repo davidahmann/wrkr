@@ -41,6 +41,18 @@ func TestBuildWorkItemPayloadDeterministic(t *testing.T) {
 }
 
 func TestWriteWorkItemPayload(t *testing.T) {
+	wd := t.TempDir()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(wd); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(orig)
+	})
+
 	payload := v1.WorkItemPayload{
 		Envelope: v1.Envelope{
 			SchemaID:        "wrkr.work_item",
@@ -56,7 +68,7 @@ func TestWriteWorkItemPayload(t *testing.T) {
 		NextCommands:   []string{"wrkr approve job_bridge --checkpoint cp_9 --reason approved"},
 	}
 
-	result, err := WriteWorkItemPayload(payload, t.TempDir(), "github")
+	result, err := WriteWorkItemPayload(payload, "out_a", "github")
 	if err != nil {
 		t.Fatalf("WriteWorkItemPayload: %v", err)
 	}
@@ -67,7 +79,7 @@ func TestWriteWorkItemPayload(t *testing.T) {
 		t.Fatalf("json output missing: %v", err)
 	}
 
-	resultB, err := WriteWorkItemPayload(payload, t.TempDir(), "github")
+	resultB, err := WriteWorkItemPayload(payload, "out_b", "github")
 	if err != nil {
 		t.Fatalf("WriteWorkItemPayload second: %v", err)
 	}

@@ -105,7 +105,10 @@ func BuildGitHubSummaryFromJobpack(path string, opts SummaryOptions) (v1.GitHubS
 }
 
 func WriteGitHubSummary(summary v1.GitHubSummary, outDir string) (WriteResult, error) {
-	layout := out.NewLayout(outDir)
+	layout, err := out.NewLayout(outDir)
+	if err != nil {
+		return WriteResult{}, err
+	}
 	if err := layout.Ensure(); err != nil {
 		return WriteResult{}, err
 	}

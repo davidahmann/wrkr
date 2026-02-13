@@ -65,7 +65,10 @@ func BuildWorkItemPayload(jobID string, checkpoint v1.Checkpoint, opts BuildOpti
 }
 
 func WriteWorkItemPayload(payload v1.WorkItemPayload, outDir, template string) (WriteResult, error) {
-	layout := out.NewLayout(outDir)
+	layout, err := out.NewLayout(outDir)
+	if err != nil {
+		return WriteResult{}, err
+	}
 	if err := layout.Ensure(); err != nil {
 		return WriteResult{}, err
 	}

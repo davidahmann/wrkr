@@ -61,7 +61,11 @@ func WriteJUnit(path string, checkResults []checks.CheckResult) error {
 	content := append([]byte(xml.Header), raw...)
 	content = append(content, '\n')
 
-	if err := fsx.AtomicWriteFile(filepath.Clean(path), content, 0o600); err != nil {
+	resolved, err := fsx.NormalizeAbsolutePath(filepath.Clean(path))
+	if err != nil {
+		return fmt.Errorf("resolve junit path: %w", err)
+	}
+	if err := fsx.AtomicWriteFile(resolved, content, 0o600); err != nil {
 		return fmt.Errorf("write junit: %w", err)
 	}
 	return nil

@@ -34,7 +34,10 @@ func runVerify(args []string, jsonMode bool, stdout, stderr io.Writer, now func(
 		}
 	}
 
-	path, _ := resolveJobpackPath(target, outDir)
+	path, _, err := resolveJobpackPath(target, outDir)
+	if err != nil {
+		return printError(err, jsonMode, stderr, now)
+	}
 	result, err := pack.VerifyJobpack(path)
 	if err != nil {
 		return printError(err, jsonMode, stderr, now)

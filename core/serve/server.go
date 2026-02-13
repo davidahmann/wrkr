@@ -6,6 +6,8 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/davidahmann/wrkr/core/approve"
 	"github.com/davidahmann/wrkr/core/dispatch"
 	wrkrerrors "github.com/davidahmann/wrkr/core/errors"
+	"github.com/davidahmann/wrkr/core/fsx"
 	"github.com/davidahmann/wrkr/core/out"
 	"github.com/davidahmann/wrkr/core/pack"
 	ghreport "github.com/davidahmann/wrkr/core/report"
@@ -24,7 +27,10 @@ import (
 const (
 	DefaultListenAddr  = "127.0.0.1:9488"
 	defaultMaxBodySize = int64(1 << 20)
+	pathComponentRE    = `^[A-Za-z0-9._-]+$`
 )
+
+var pathComponentPattern = regexp.MustCompile(pathComponentRE)
 
 type Config struct {
 	ListenAddr       string
@@ -151,9 +157,60 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, r, err, http.StatusBadRequest)
 		return
 	}
-	result, err := dispatch.Submit(req.JobSpecPath, dispatch.SubmitOptions{
+
+	specPath := strings.TrimSpace(req.JobSpecPath)
+	if strings.Contains(specPath, "..") {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EUnsafeOperation,
+			"unsafe jobspec path",
+			map[string]any{"field": "jobspec_path", "value": specPath},
+		), http.StatusBadRequest)
+		return
+	}
+	if specPath != "" && !filepath.IsLocal(specPath) {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EUnsafeOperation,
+			"jobspec path must be local to the working directory",
+			map[string]any{"field": "jobspec_path", "value": specPath},
+		), http.StatusBadRequest)
+		return
+	}
+	if specPath != "" {
+		resolved, err := fsx.ResolveWithinWorkingDir(specPath)
+		if err != nil {
+			s.writeError(w, r, wrkrerrors.New(
+				wrkrerrors.EUnsafeOperation,
+				"path must stay within working directory",
+				map[string]any{"field": "jobspec_path", "value": specPath, "error": err.Error()},
+			), http.StatusBadRequest)
+			return
+		}
+		specPath = resolved
+	}
+
+	jobID := strings.TrimSpace(req.JobID)
+	if jobID != "" {
+		if strings.Contains(jobID, "..") {
+			s.writeError(w, r, wrkrerrors.New(
+				wrkrerrors.EUnsafeOperation,
+				"unsafe path component",
+				map[string]any{"field": "job_id", "value": jobID},
+			), http.StatusBadRequest)
+			return
+		}
+		if !pathComponentPattern.MatchString(jobID) {
+			s.writeError(w, r, wrkrerrors.New(
+				wrkrerrors.EInvalidInputSchema,
+				"invalid job_id format",
+				map[string]any{"field": "job_id", "value": jobID},
+			), http.StatusBadRequest)
+			return
+		}
+	}
+
+	result, err := dispatch.Submit(specPath, dispatch.SubmitOptions{
 		Now:       s.cfg.Now,
-		JobID:     req.JobID,
+		JobID:     jobID,
 		FromServe: true,
 	})
 	if err != nil {
@@ -165,8 +222,20 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	jobID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/jobs/"), ":status")
-	if err := rejectTraversal(jobID); err != nil {
-		s.writeError(w, r, err, http.StatusBadRequest)
+	if strings.Contains(jobID, "..") {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EUnsafeOperation,
+			"unsafe path component",
+			map[string]any{"field": "job_id", "value": jobID},
+		), http.StatusBadRequest)
+		return
+	}
+	if !pathComponentPattern.MatchString(jobID) {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EInvalidInputSchema,
+			"invalid job_id format",
+			map[string]any{"field": "job_id", "value": jobID},
+		), http.StatusBadRequest)
 		return
 	}
 
@@ -195,8 +264,20 @@ func (s *Server) handleCheckpoints(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	jobID := parts[0]
-	if err := rejectTraversal(jobID); err != nil {
-		s.writeError(w, r, err, http.StatusBadRequest)
+	if strings.Contains(jobID, "..") {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EUnsafeOperation,
+			"unsafe path component",
+			map[string]any{"field": "job_id", "value": jobID},
+		), http.StatusBadRequest)
+		return
+	}
+	if !pathComponentPattern.MatchString(jobID) {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EInvalidInputSchema,
+			"invalid job_id format",
+			map[string]any{"field": "job_id", "value": jobID},
+		), http.StatusBadRequest)
 		return
 	}
 
@@ -220,11 +301,24 @@ func (s *Server) handleCheckpoints(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(parts) == 3 && parts[1] == "checkpoints" {
-		if err := rejectTraversal(parts[2]); err != nil {
-			s.writeError(w, r, err, http.StatusBadRequest)
+		checkpointID := strings.TrimSpace(parts[2])
+		if strings.Contains(checkpointID, "..") {
+			s.writeError(w, r, wrkrerrors.New(
+				wrkrerrors.EUnsafeOperation,
+				"unsafe path component",
+				map[string]any{"field": "checkpoint_id", "value": checkpointID},
+			), http.StatusBadRequest)
 			return
 		}
-		item, err := rn.GetCheckpoint(jobID, parts[2])
+		if !pathComponentPattern.MatchString(checkpointID) {
+			s.writeError(w, r, wrkrerrors.New(
+				wrkrerrors.EInvalidInputSchema,
+				"invalid checkpoint_id format",
+				map[string]any{"field": "checkpoint_id", "value": checkpointID},
+			), http.StatusBadRequest)
+			return
+		}
+		item, err := rn.GetCheckpoint(jobID, checkpointID)
 		if err != nil {
 			s.writeError(w, r, err, http.StatusNotFound)
 			return
@@ -237,8 +331,20 @@ func (s *Server) handleCheckpoints(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleApprove(w http.ResponseWriter, r *http.Request) {
 	jobID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/jobs/"), ":approve")
-	if err := rejectTraversal(jobID); err != nil {
-		s.writeError(w, r, err, http.StatusBadRequest)
+	if strings.Contains(jobID, "..") {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EUnsafeOperation,
+			"unsafe path component",
+			map[string]any{"field": "job_id", "value": jobID},
+		), http.StatusBadRequest)
+		return
+	}
+	if !pathComponentPattern.MatchString(jobID) {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EInvalidInputSchema,
+			"invalid job_id format",
+			map[string]any{"field": "job_id", "value": jobID},
+		), http.StatusBadRequest)
 		return
 	}
 	var req struct {
@@ -254,6 +360,24 @@ func (s *Server) handleApprove(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, r, err, http.StatusBadRequest)
 		return
 	}
+	checkpointID := strings.TrimSpace(req.CheckpointID)
+	if strings.Contains(checkpointID, "..") {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EUnsafeOperation,
+			"unsafe path component",
+			map[string]any{"field": "checkpoint_id", "value": checkpointID},
+		), http.StatusBadRequest)
+		return
+	}
+	if !pathComponentPattern.MatchString(checkpointID) {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EInvalidInputSchema,
+			"invalid checkpoint_id format",
+			map[string]any{"field": "checkpoint_id", "value": checkpointID},
+		), http.StatusBadRequest)
+		return
+	}
+
 	rn, st, err := openRunner(s.cfg.Now)
 	if err != nil {
 		s.writeError(w, r, err, http.StatusInternalServerError)
@@ -263,7 +387,7 @@ func (s *Server) handleApprove(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, r, err, http.StatusNotFound)
 		return
 	}
-	rec, err := rn.ApproveCheckpoint(jobID, req.CheckpointID, req.Reason, approve.ResolveApprovedBy(req.ApprovedBy))
+	rec, err := rn.ApproveCheckpoint(jobID, checkpointID, req.Reason, approve.ResolveApprovedBy(req.ApprovedBy))
 	if err != nil {
 		s.writeError(w, r, err, http.StatusBadRequest)
 		return
@@ -273,8 +397,20 @@ func (s *Server) handleApprove(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	jobID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/jobs/"), ":export")
-	if err := rejectTraversal(jobID); err != nil {
-		s.writeError(w, r, err, http.StatusBadRequest)
+	if strings.Contains(jobID, "..") {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EUnsafeOperation,
+			"unsafe path component",
+			map[string]any{"field": "job_id", "value": jobID},
+		), http.StatusBadRequest)
+		return
+	}
+	if !pathComponentPattern.MatchString(jobID) {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EInvalidInputSchema,
+			"invalid job_id format",
+			map[string]any{"field": "job_id", "value": jobID},
+		), http.StatusBadRequest)
 		return
 	}
 	var req struct {
@@ -284,12 +420,37 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, r, err, http.StatusBadRequest)
 		return
 	}
-	if err := rejectTraversal(req.OutDir); err != nil {
-		s.writeError(w, r, err, http.StatusBadRequest)
+	outDir := strings.TrimSpace(req.OutDir)
+	if strings.Contains(outDir, "..") {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EUnsafeOperation,
+			"unsafe out_dir path",
+			map[string]any{"field": "out_dir", "value": outDir},
+		), http.StatusBadRequest)
 		return
 	}
+	if outDir != "" && !filepath.IsLocal(outDir) {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EUnsafeOperation,
+			"out_dir must be local to the working directory",
+			map[string]any{"field": "out_dir", "value": outDir},
+		), http.StatusBadRequest)
+		return
+	}
+	if outDir != "" {
+		resolvedOutDir, err := fsx.ResolveWithinWorkingDir(outDir)
+		if err != nil {
+			s.writeError(w, r, wrkrerrors.New(
+				wrkrerrors.EUnsafeOperation,
+				"path must stay within working directory",
+				map[string]any{"field": "out_dir", "value": req.OutDir, "error": err.Error()},
+			), http.StatusBadRequest)
+			return
+		}
+		outDir = resolvedOutDir
+	}
 	result, err := pack.ExportJobpack(jobID, pack.ExportOptions{
-		OutDir:          req.OutDir,
+		OutDir:          outDir,
 		Now:             s.cfg.Now,
 		ProducerVersion: s.cfg.ProducerVersion,
 	})
@@ -302,8 +463,20 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 	jobID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/jobs/"), ":verify")
-	if err := rejectTraversal(jobID); err != nil {
-		s.writeError(w, r, err, http.StatusBadRequest)
+	if strings.Contains(jobID, "..") {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EUnsafeOperation,
+			"unsafe path component",
+			map[string]any{"field": "job_id", "value": jobID},
+		), http.StatusBadRequest)
+		return
+	}
+	if !pathComponentPattern.MatchString(jobID) {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EInvalidInputSchema,
+			"invalid job_id format",
+			map[string]any{"field": "job_id", "value": jobID},
+		), http.StatusBadRequest)
 		return
 	}
 	var req struct {
@@ -313,11 +486,40 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, r, err, http.StatusBadRequest)
 		return
 	}
-	if err := rejectTraversal(req.OutDir); err != nil {
+	outDir := strings.TrimSpace(req.OutDir)
+	if strings.Contains(outDir, "..") {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EUnsafeOperation,
+			"unsafe out_dir path",
+			map[string]any{"field": "out_dir", "value": outDir},
+		), http.StatusBadRequest)
+		return
+	}
+	if outDir != "" && !filepath.IsLocal(outDir) {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EUnsafeOperation,
+			"out_dir must be local to the working directory",
+			map[string]any{"field": "out_dir", "value": outDir},
+		), http.StatusBadRequest)
+		return
+	}
+	if outDir != "" {
+		resolvedOutDir, err := fsx.ResolveWithinWorkingDir(outDir)
+		if err != nil {
+			s.writeError(w, r, wrkrerrors.New(
+				wrkrerrors.EUnsafeOperation,
+				"path must stay within working directory",
+				map[string]any{"field": "out_dir", "value": req.OutDir, "error": err.Error()},
+			), http.StatusBadRequest)
+			return
+		}
+		outDir = resolvedOutDir
+	}
+	layout, err := out.NewLayout(outDir)
+	if err != nil {
 		s.writeError(w, r, err, http.StatusBadRequest)
 		return
 	}
-	layout := out.NewLayout(req.OutDir)
 	result, err := pack.VerifyJobpack(layout.JobpackPath(jobID))
 	if err != nil {
 		s.writeError(w, r, err, http.StatusBadRequest)
@@ -328,8 +530,20 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAccept(w http.ResponseWriter, r *http.Request) {
 	jobID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/jobs/"), ":accept")
-	if err := rejectTraversal(jobID); err != nil {
-		s.writeError(w, r, err, http.StatusBadRequest)
+	if strings.Contains(jobID, "..") {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EUnsafeOperation,
+			"unsafe path component",
+			map[string]any{"field": "job_id", "value": jobID},
+		), http.StatusBadRequest)
+		return
+	}
+	if !pathComponentPattern.MatchString(jobID) {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EInvalidInputSchema,
+			"invalid job_id format",
+			map[string]any{"field": "job_id", "value": jobID},
+		), http.StatusBadRequest)
 		return
 	}
 	var req struct {
@@ -339,14 +553,39 @@ func (s *Server) handleAccept(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, r, err, http.StatusBadRequest)
 		return
 	}
-	if err := rejectTraversal(req.ConfigPath); err != nil {
-		s.writeError(w, r, err, http.StatusBadRequest)
+	configPath := strings.TrimSpace(req.ConfigPath)
+	if strings.Contains(configPath, "..") {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EUnsafeOperation,
+			"unsafe config path",
+			map[string]any{"field": "config_path", "value": configPath},
+		), http.StatusBadRequest)
 		return
+	}
+	if configPath != "" && !filepath.IsLocal(configPath) {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EUnsafeOperation,
+			"config path must be local to the working directory",
+			map[string]any{"field": "config_path", "value": configPath},
+		), http.StatusBadRequest)
+		return
+	}
+	if configPath != "" {
+		resolvedConfigPath, err := fsx.ResolveWithinWorkingDir(configPath)
+		if err != nil {
+			s.writeError(w, r, wrkrerrors.New(
+				wrkrerrors.EUnsafeOperation,
+				"path must stay within working directory",
+				map[string]any{"field": "config_path", "value": req.ConfigPath, "error": err.Error()},
+			), http.StatusBadRequest)
+			return
+		}
+		configPath = resolvedConfigPath
 	}
 	result, err := accept.Run(jobID, accept.RunOptions{
 		Now:             s.cfg.Now,
 		ProducerVersion: s.cfg.ProducerVersion,
-		ConfigPath:      req.ConfigPath,
+		ConfigPath:      configPath,
 		WorkDir:         ".",
 	})
 	if err != nil {
@@ -358,8 +597,20 @@ func (s *Server) handleAccept(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleReportGitHub(w http.ResponseWriter, r *http.Request) {
 	jobID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/jobs/"), ":report-github")
-	if err := rejectTraversal(jobID); err != nil {
-		s.writeError(w, r, err, http.StatusBadRequest)
+	if strings.Contains(jobID, "..") {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EUnsafeOperation,
+			"unsafe path component",
+			map[string]any{"field": "job_id", "value": jobID},
+		), http.StatusBadRequest)
+		return
+	}
+	if !pathComponentPattern.MatchString(jobID) {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EInvalidInputSchema,
+			"invalid job_id format",
+			map[string]any{"field": "job_id", "value": jobID},
+		), http.StatusBadRequest)
 		return
 	}
 	var req struct {
@@ -369,12 +620,37 @@ func (s *Server) handleReportGitHub(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, r, err, http.StatusBadRequest)
 		return
 	}
-	if err := rejectTraversal(req.OutDir); err != nil {
-		s.writeError(w, r, err, http.StatusBadRequest)
+	outDir := strings.TrimSpace(req.OutDir)
+	if strings.Contains(outDir, "..") {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EUnsafeOperation,
+			"unsafe out_dir path",
+			map[string]any{"field": "out_dir", "value": outDir},
+		), http.StatusBadRequest)
 		return
 	}
+	if outDir != "" && !filepath.IsLocal(outDir) {
+		s.writeError(w, r, wrkrerrors.New(
+			wrkrerrors.EUnsafeOperation,
+			"out_dir must be local to the working directory",
+			map[string]any{"field": "out_dir", "value": outDir},
+		), http.StatusBadRequest)
+		return
+	}
+	if outDir != "" {
+		resolvedOutDir, err := fsx.ResolveWithinWorkingDir(outDir)
+		if err != nil {
+			s.writeError(w, r, wrkrerrors.New(
+				wrkrerrors.EUnsafeOperation,
+				"path must stay within working directory",
+				map[string]any{"field": "out_dir", "value": req.OutDir, "error": err.Error()},
+			), http.StatusBadRequest)
+			return
+		}
+		outDir = resolvedOutDir
+	}
 	exported, err := pack.ExportJobpack(jobID, pack.ExportOptions{
-		OutDir:          req.OutDir,
+		OutDir:          outDir,
 		Now:             s.cfg.Now,
 		ProducerVersion: s.cfg.ProducerVersion,
 	})
@@ -390,7 +666,7 @@ func (s *Server) handleReportGitHub(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, r, err, http.StatusBadRequest)
 		return
 	}
-	written, err := ghreport.WriteGitHubSummary(summary, req.OutDir)
+	written, err := ghreport.WriteGitHubSummary(summary, outDir)
 	if err != nil {
 		s.writeError(w, r, err, http.StatusInternalServerError)
 		return
@@ -497,12 +773,4 @@ func isLoopbackHost(host string) bool {
 	}
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback() && !ip.IsUnspecified()
-}
-
-func rejectTraversal(value string) error {
-	value = strings.TrimSpace(value)
-	if strings.Contains(value, "..") {
-		return wrkrerrors.New(wrkrerrors.EUnsafeOperation, "path traversal not allowed", map[string]any{"value": value})
-	}
-	return nil
 }

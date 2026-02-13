@@ -34,7 +34,10 @@ func runReceipt(args []string, jsonMode bool, stdout, stderr io.Writer, now func
 		}
 	}
 
-	path, isPath := resolveJobpackPath(target, outDir)
+	path, isPath, err := resolveJobpackPath(target, outDir)
+	if err != nil {
+		return printError(err, jsonMode, stderr, now)
+	}
 	if !isPath {
 		exported, err := pack.ExportJobpack(target, pack.ExportOptions{OutDir: outDir, Now: now, ProducerVersion: version})
 		if err != nil {

@@ -1,15 +1,17 @@
 package out
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func TestLayoutPaths(t *testing.T) {
-	t.Parallel()
-
-	l := NewLayout("")
+	l, err := NewLayout("")
+	if err != nil {
+		t.Fatalf("new layout: %v", err)
+	}
 	if got := l.JobpackPath("job_1"); !strings.Contains(filepath.ToSlash(got), "wrkr-out/jobpacks/jobpack_job_1.zip") {
 		t.Fatalf("unexpected jobpack path: %s", got)
 	}
@@ -22,9 +24,22 @@ func TestLayoutPaths(t *testing.T) {
 }
 
 func TestEnsureCreatesDirs(t *testing.T) {
-	t.Parallel()
+	wd := t.TempDir()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(wd); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(orig)
+	})
 
-	l := NewLayout(filepath.Join(t.TempDir(), "wrkr-out"))
+	l, err := NewLayout("wrkr-out")
+	if err != nil {
+		t.Fatalf("new layout: %v", err)
+	}
 	if err := l.Ensure(); err != nil {
 		t.Fatalf("ensure layout dirs: %v", err)
 	}

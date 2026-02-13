@@ -68,8 +68,10 @@ func RunWithOptions(opts Options) (Result, error) {
 		results = append(results, pass("store_root", s.Root()))
 	}
 
-	layout := out.NewLayout("")
-	if err := layout.Ensure(); err != nil {
+	layout, err := out.NewLayout("")
+	if err != nil {
+		results = append(results, failCritical("output_layout", err.Error(), "Ensure output root is within the current workspace."))
+	} else if err := layout.Ensure(); err != nil {
 		results = append(results, failCritical("output_layout", err.Error(), "Ensure current workspace is writable or pass --out-dir for command-specific output."))
 	} else {
 		results = append(results, pass("output_layout", layout.Root()))

@@ -17,9 +17,20 @@ import (
 func TestAcceptInitWritesConfig(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	workspace := t.TempDir()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(workspace); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(orig)
+	})
 	now := time.Date(2026, 2, 13, 23, 0, 0, 0, time.UTC)
 
-	configPath := filepath.Join(t.TempDir(), "accept.yaml")
+	configPath := filepath.Join(workspace, "accept.yaml")
 	var out bytes.Buffer
 	var errBuf bytes.Buffer
 	code := run([]string{"accept", "init", "--path", configPath, "--json"}, &out, &errBuf, func() time.Time { return now })
@@ -34,11 +45,22 @@ func TestAcceptInitWritesConfig(t *testing.T) {
 func TestAcceptRunCIAndReport(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	workspace := t.TempDir()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(workspace); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(orig)
+	})
 	now := time.Date(2026, 2, 13, 23, 0, 0, 0, time.UTC)
 
 	setupEpic5Job(t, "job_cli_accept", now)
 
-	configPath := filepath.Join(t.TempDir(), "accept.yaml")
+	configPath := filepath.Join(workspace, "accept.yaml")
 	if err := os.WriteFile(configPath, []byte(`schema_id: wrkr.accept_config
 schema_version: v1
 required_artifacts:
@@ -54,9 +76,9 @@ path_rules:
 		t.Fatalf("write config: %v", err)
 	}
 
-	outDir := filepath.Join(t.TempDir(), "out")
-	junitPath := filepath.Join(t.TempDir(), "report", "accept.junit.xml")
-	stepSummary := filepath.Join(t.TempDir(), "gh", "step-summary.md")
+	outDir := filepath.Join(workspace, "out")
+	junitPath := filepath.Join(workspace, "report", "accept.junit.xml")
+	stepSummary := filepath.Join(workspace, "gh", "step-summary.md")
 	t.Setenv("GITHUB_STEP_SUMMARY", stepSummary)
 
 	var out bytes.Buffer
@@ -91,11 +113,22 @@ path_rules:
 func TestAcceptRunFailureExitCode(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	workspace := t.TempDir()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(workspace); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(orig)
+	})
 	now := time.Date(2026, 2, 13, 23, 0, 0, 0, time.UTC)
 
 	setupEpic5Job(t, "job_cli_accept_fail", now)
 
-	configPath := filepath.Join(t.TempDir(), "accept.yaml")
+	configPath := filepath.Join(workspace, "accept.yaml")
 	if err := os.WriteFile(configPath, []byte(`schema_id: wrkr.accept_config
 schema_version: v1
 required_artifacts:

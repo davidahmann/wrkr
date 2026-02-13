@@ -50,7 +50,10 @@ func runReportGitHub(args []string, jsonMode bool, stdout, stderr io.Writer, now
 		}
 	}
 
-	jobpackPath, isPath := resolveJobpackPath(target, outDir)
+	jobpackPath, isPath, err := resolveJobpackPath(target, outDir)
+	if err != nil {
+		return printError(err, jsonMode, stderr, now)
+	}
 	if !isPath {
 		exported, err := pack.ExportJobpack(target, pack.ExportOptions{OutDir: outDir, Now: now, ProducerVersion: version})
 		if err != nil {

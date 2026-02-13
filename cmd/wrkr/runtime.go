@@ -42,19 +42,22 @@ func ensureJobExists(s *store.LocalStore, jobID string) error {
 	return nil
 }
 
-func resolveJobpackPath(target, outDir string) (path string, isPath bool) {
+func resolveJobpackPath(target, outDir string) (path string, isPath bool, err error) {
 	if target == "" {
-		return "", false
+		return "", false, nil
 	}
 	if info, err := os.Stat(target); err == nil && !info.IsDir() {
-		return target, true
+		return target, true, nil
 	}
 	if abs, err := filepath.Abs(target); err == nil {
 		if info, err := os.Stat(abs); err == nil && !info.IsDir() {
-			return abs, true
+			return abs, true, nil
 		}
 	}
 
-	layout := out.NewLayout(outDir)
-	return layout.JobpackPath(target), false
+	layout, err := out.NewLayout(outDir)
+	if err != nil {
+		return "", false, err
+	}
+	return layout.JobpackPath(target), false, nil
 }

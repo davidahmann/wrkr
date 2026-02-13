@@ -107,3 +107,62 @@ func TestAcquireLockDoesNotReclaimActiveOwner(t *testing.T) {
 		t.Fatalf("expected ErrLockBusy for active owner, got %v", err)
 	}
 }
+
+func TestResolveWithinBase(t *testing.T) {
+	t.Parallel()
+
+	base := t.TempDir()
+	got, err := ResolveWithinBase(base, "nested/file.txt")
+	if err != nil {
+		t.Fatalf("ResolveWithinBase: %v", err)
+	}
+	want := filepath.Join(base, "nested", "file.txt")
+	wantResolved, err := filepath.EvalSymlinks(want)
+	if err != nil {
+		wantResolved = want
+	}
+	gotResolved, err := filepath.EvalSymlinks(filepath.Dir(got))
+	if err == nil {
+		got = filepath.Join(gotResolved, filepath.Base(got))
+	}
+	if got != wantResolved {
+		t.Fatalf("expected %s, got %s", wantResolved, got)
+	}
+}
+
+func TestResolveWithinBaseRejectsEscape(t *testing.T) {
+	t.Parallel()
+
+	base := t.TempDir()
+	if _, err := ResolveWithinBase(base, "../escape.txt"); err == nil {
+		t.Fatal("expected ResolveWithinBase to reject escaping path")
+	}
+}
+
+func TestResolveWithinBaseRejectsSymlinkEscape(t *testing.T) {
+	t.Parallel()
+
+	base := t.TempDir()
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(base, "link")); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	if _, err := ResolveWithinBase(base, filepath.Join("link", "file.txt")); err == nil {
+		t.Fatal("expected symlink escape to be rejected")
+	}
+}
+
+func TestResolveWithinBaseRejectsNestedSymlinkEscape(t *testing.T) {
+	t.Parallel()
+
+	base := t.TempDir()
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(base, "link")); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	if _, err := ResolveWithinBase(base, filepath.Join("link", "nested", "file.txt")); err == nil {
+		t.Fatal("expected nested symlink escape to be rejected")
+	}
+}
