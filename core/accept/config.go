@@ -51,7 +51,10 @@ func DefaultConfig() Config {
 }
 
 func InitConfig(path string, force bool) (string, error) {
-	resolved := resolveConfigPath(path)
+	resolved, err := resolveConfigPath(path)
+	if err != nil {
+		return "", err
+	}
 	if !force {
 		if _, err := os.Stat(resolved); err == nil {
 			return "", fmt.Errorf("config already exists: %s", resolved)
@@ -70,8 +73,10 @@ func InitConfig(path string, force bool) (string, error) {
 }
 
 func LoadConfig(path string) (Config, error) {
-	resolved := resolveConfigPath(path)
-	// #nosec G304 -- path is explicitly provided by local operator for repository config loading.
+	resolved, err := resolveConfigPath(path)
+	if err != nil {
+		return Config{}, err
+	}
 	raw, err := os.ReadFile(resolved)
 	if err != nil {
 		return Config{}, err
@@ -86,7 +91,10 @@ func LoadConfig(path string) (Config, error) {
 }
 
 func LoadConfigOrDefault(path string) (Config, string, error) {
-	resolved := resolveConfigPath(path)
+	resolved, err := resolveConfigPath(path)
+	if err != nil {
+		return Config{}, "", err
+	}
 	cfg, err := LoadConfig(resolved)
 	if err == nil {
 		return cfg, resolved, nil
@@ -110,12 +118,12 @@ func (c Config) ToChecksConfig() checks.Config {
 	}
 }
 
-func resolveConfigPath(path string) string {
+func resolveConfigPath(path string) (string, error) {
 	trimmed := strings.TrimSpace(path)
 	if trimmed == "" {
 		trimmed = DefaultConfigPath
 	}
-	return filepath.Clean(trimmed)
+	return fsx.ResolveWithinWorkingDir(filepath.Clean(trimmed))
 }
 
 func (c *Config) normalize() {

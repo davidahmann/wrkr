@@ -203,7 +203,10 @@ func ExportJobpack(jobID string, opts ExportOptions) (ExportResult, error) {
 		return ExportResult{}, err
 	}
 
-	layout := out.NewLayout(opts.OutDir)
+	layout, err := out.NewLayout(opts.OutDir)
+	if err != nil {
+		return ExportResult{}, err
+	}
 	if err := layout.Ensure(); err != nil {
 		return ExportResult{}, err
 	}

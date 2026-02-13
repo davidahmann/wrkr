@@ -3,7 +3,6 @@ package dispatch
 import (
 	"errors"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -16,9 +15,20 @@ import (
 func TestSubmitReferenceJobSpec(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	workspace := t.TempDir()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(workspace); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(orig)
+	})
 	now := time.Date(2026, 2, 14, 2, 0, 0, 0, time.UTC)
 
-	specPath := filepath.Join(t.TempDir(), "jobspec.yaml")
+	specPath := "jobspec.yaml"
 	if err := os.WriteFile(specPath, []byte(`schema_id: wrkr.jobspec
 schema_version: v1
 created_at: "2026-02-14T02:00:00Z"
@@ -82,9 +92,20 @@ environment_fingerprint:
 func TestSubmitResumeContinuesRemainingSteps(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	workspace := t.TempDir()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(workspace); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(orig)
+	})
 	now := time.Date(2026, 2, 14, 2, 10, 0, 0, time.UTC)
 
-	specPath := filepath.Join(t.TempDir(), "jobspec_resume.yaml")
+	specPath := "jobspec_resume.yaml"
 	if err := os.WriteFile(specPath, []byte(`schema_id: wrkr.jobspec
 schema_version: v1
 created_at: "2026-02-14T02:10:00Z"
@@ -189,9 +210,20 @@ environment_fingerprint:
 func TestSubmitEnforcesBudgetFromJobSpec(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	workspace := t.TempDir()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(workspace); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(orig)
+	})
 	now := time.Date(2026, 2, 14, 2, 20, 0, 0, time.UTC)
 
-	specPath := filepath.Join(t.TempDir(), "jobspec_budget.yaml")
+	specPath := "jobspec_budget.yaml"
 	if err := os.WriteFile(specPath, []byte(`schema_id: wrkr.jobspec
 schema_version: v1
 created_at: "2026-02-14T02:20:00Z"
@@ -224,7 +256,7 @@ environment_fingerprint:
 		t.Fatalf("write jobspec: %v", err)
 	}
 
-	_, err := Submit(specPath, SubmitOptions{Now: func() time.Time { return now }, JobID: "job_submit_budget"})
+	_, err = Submit(specPath, SubmitOptions{Now: func() time.Time { return now }, JobID: "job_submit_budget"})
 	if err == nil {
 		t.Fatal("expected budget exceeded error")
 	}

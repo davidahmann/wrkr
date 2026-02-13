@@ -18,12 +18,23 @@ import (
 func TestRunWritesAcceptanceResult(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	workspace := t.TempDir()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(workspace); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(orig)
+	})
 	now := time.Date(2026, 2, 13, 21, 0, 0, 0, time.UTC)
 
 	setupAcceptJob(t, "job_accept_run", now)
 
-	configPath := filepath.Join(t.TempDir(), "accept.yaml")
-	if err := os.WriteFile(configPath, []byte(`schema_id: wrkr.accept_config
+	configPath := "accept.yaml"
+	if err := os.WriteFile(filepath.Join(workspace, configPath), []byte(`schema_id: wrkr.accept_config
 schema_version: v1
 required_artifacts:
   - reports/out.md
@@ -38,7 +49,7 @@ path_rules:
 		t.Fatalf("write config: %v", err)
 	}
 
-	result, err := Run("job_accept_run", RunOptions{Now: func() time.Time { return now }, ProducerVersion: "test", ConfigPath: configPath, WorkDir: t.TempDir()})
+	result, err := Run("job_accept_run", RunOptions{Now: func() time.Time { return now }, ProducerVersion: "test", ConfigPath: configPath, WorkDir: workspace})
 	if err != nil {
 		t.Fatalf("run accept: %v", err)
 	}
@@ -66,12 +77,23 @@ path_rules:
 func TestRunFailureCode(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	workspace := t.TempDir()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(workspace); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(orig)
+	})
 	now := time.Date(2026, 2, 13, 21, 0, 0, 0, time.UTC)
 
 	setupAcceptJob(t, "job_accept_fail", now)
 
-	configPath := filepath.Join(t.TempDir(), "accept.yaml")
-	if err := os.WriteFile(configPath, []byte(`schema_id: wrkr.accept_config
+	configPath := "accept.yaml"
+	if err := os.WriteFile(filepath.Join(workspace, configPath), []byte(`schema_id: wrkr.accept_config
 schema_version: v1
 required_artifacts:
   - reports/missing.md
@@ -85,7 +107,7 @@ path_rules:
 		t.Fatalf("write config: %v", err)
 	}
 
-	result, err := Run("job_accept_fail", RunOptions{Now: func() time.Time { return now }, ProducerVersion: "test", ConfigPath: configPath, WorkDir: t.TempDir()})
+	result, err := Run("job_accept_fail", RunOptions{Now: func() time.Time { return now }, ProducerVersion: "test", ConfigPath: configPath, WorkDir: workspace})
 	if err != nil {
 		t.Fatalf("run accept: %v", err)
 	}

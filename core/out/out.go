@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+
+	"github.com/davidahmann/wrkr/core/fsx"
 )
 
 const defaultRoot = "./wrkr-out"
@@ -12,12 +15,16 @@ type Layout struct {
 	root string
 }
 
-func NewLayout(explicit string) Layout {
-	root := explicit
+func NewLayout(explicit string) (Layout, error) {
+	root := strings.TrimSpace(explicit)
 	if root == "" {
 		root = defaultRoot
 	}
-	return Layout{root: filepath.Clean(root)}
+	resolved, err := fsx.NormalizeAbsolutePath(filepath.Clean(root))
+	if err != nil {
+		return Layout{}, fmt.Errorf("resolve output root: %w", err)
+	}
+	return Layout{root: resolved}, nil
 }
 
 func (l Layout) Root() string {

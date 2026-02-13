@@ -46,9 +46,11 @@ func runJobInspect(args []string, jsonMode bool, stdout, stderr io.Writer, now f
 		}
 	}
 
-	path, isPath := resolveJobpackPath(target, outDir)
+	path, isPath, err := resolveJobpackPath(target, outDir)
+	if err != nil {
+		return printError(err, jsonMode, stderr, now)
+	}
 	var result pack.InspectResult
-	var err error
 	if isPath {
 		result, err = pack.InspectJobpack(path)
 	} else {

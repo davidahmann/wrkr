@@ -11,10 +11,20 @@ import (
 )
 
 func TestWriteJUnit(t *testing.T) {
-	t.Parallel()
+	wd := t.TempDir()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(wd); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(orig)
+	})
 
-	path := filepath.Join(t.TempDir(), "accept.junit.xml")
-	err := WriteJUnit(path, []checks.CheckResult{
+	path := filepath.Join(wd, "accept.junit.xml")
+	err = WriteJUnit("accept.junit.xml", []checks.CheckResult{
 		{Name: "schema_validity", Passed: true, Message: "ok"},
 		{Name: "test_command", Passed: false, Message: "failed", ReasonCode: wrkrerrors.EAcceptTestFail},
 	})

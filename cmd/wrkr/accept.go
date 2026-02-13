@@ -145,7 +145,10 @@ func runAcceptRun(args []string, jsonMode bool, stdout, stderr io.Writer, now fu
 		return printError(err, jsonMode, stderr, now)
 	}
 
-	layout := out.NewLayout(outDir)
+	layout, err := out.NewLayout(outDir)
+	if err != nil {
+		return printError(err, jsonMode, stderr, now)
+	}
 	if ciMode && junitPath == "" {
 		junitPath = layout.ReportPath(fmt.Sprintf("accept_%s.junit.xml", jobID))
 	}

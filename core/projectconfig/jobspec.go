@@ -25,7 +25,15 @@ func InitJobSpec(path string, force bool, now time.Time, producerVersion string)
 	if target == "" {
 		target = DefaultJobSpecPath
 	}
-	target = filepath.Clean(target)
+	resolved, err := fsx.ResolveWithinWorkingDir(filepath.Clean(target))
+	if err != nil {
+		return "", wrkrerrors.New(
+			wrkrerrors.EInvalidInputSchema,
+			"jobspec path must stay within working directory",
+			map[string]any{"path": target, "error": err.Error()},
+		)
+	}
+	target = resolved
 
 	if !force {
 		if _, err := os.Stat(target); err == nil {
@@ -72,14 +80,21 @@ func LoadJobSpec(path string) (*v1.JobSpec, error) {
 	if target == "" {
 		return nil, wrkrerrors.New(wrkrerrors.EInvalidInputSchema, "jobspec path is required", nil)
 	}
-	// #nosec G304 -- user-supplied path is intentional for local CLI usage.
-	raw, err := os.ReadFile(filepath.Clean(target))
+	resolved, err := fsx.ResolveWithinWorkingDir(filepath.Clean(target))
+	if err != nil {
+		return nil, wrkrerrors.New(
+			wrkrerrors.EInvalidInputSchema,
+			"jobspec path must stay within working directory",
+			map[string]any{"path": target, "error": err.Error()},
+		)
+	}
+	raw, err := os.ReadFile(resolved)
 	if err != nil {
 		return nil, fmt.Errorf("read jobspec: %w", err)
 	}
 
 	var spec v1.JobSpec
-	switch strings.ToLower(filepath.Ext(target)) {
+	switch strings.ToLower(filepath.Ext(resolved)) {
 	case ".json":
 		if err := json.Unmarshal(raw, &spec); err != nil {
 			return nil, wrkrerrors.New(wrkrerrors.EInvalidInputSchema, "decode jobspec json failed", map[string]any{"error": err.Error()})

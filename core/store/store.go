@@ -56,10 +56,14 @@ func New(root string) (*LocalStore, error) {
 			return nil, err
 		}
 	}
-	if err := os.MkdirAll(filepath.Join(root, "jobs"), 0o750); err != nil {
+	resolvedRoot, err := fsx.NormalizeAbsolutePath(root)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(filepath.Join(resolvedRoot, "jobs"), 0o750); err != nil {
 		return nil, fmt.Errorf("create store root: %w", err)
 	}
-	return &LocalStore{root: root}, nil
+	return &LocalStore{root: resolvedRoot}, nil
 }
 
 func (s *LocalStore) Root() string {
@@ -70,23 +74,27 @@ func (s *LocalStore) JobDir(jobID string) string {
 	return filepath.Join(s.root, "jobs", jobID)
 }
 
-func (s *LocalStore) eventsPath(jobID string) string {
-	return filepath.Join(s.JobDir(jobID), "events.jsonl")
-}
-
-func (s *LocalStore) snapshotPath(jobID string) string {
-	return filepath.Join(s.JobDir(jobID), "snapshot.json")
-}
-
-func (s *LocalStore) appendLockPath(jobID string) string {
-	return filepath.Join(s.JobDir(jobID), "append.lock")
+func (s *LocalStore) safeJobPath(jobID, leaf string) (string, error) {
+	if err := validateJobID(jobID); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(leaf) == "" {
+		return "", fmt.Errorf("empty job leaf path")
+	}
+	return fsx.ResolveWithinBase(s.JobDir(jobID), leaf)
 }
 
 func (s *LocalStore) EnsureJob(jobID string) error {
 	if err := validateJobID(jobID); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(s.JobDir(jobID), 0o750); err != nil {
+	jobDir := s.JobDir(jobID)
+	jobsRoot := filepath.Join(s.root, "jobs")
+	rel, err := filepath.Rel(jobsRoot, jobDir)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return fmt.Errorf("job directory escapes store root")
+	}
+	if err := os.MkdirAll(jobDir, 0o750); err != nil {
 		return fmt.Errorf("create job dir: %w", err)
 	}
 	return nil
@@ -96,7 +104,13 @@ func (s *LocalStore) JobExists(jobID string) (bool, error) {
 	if err := validateJobID(jobID); err != nil {
 		return false, err
 	}
-	info, err := os.Stat(s.JobDir(jobID))
+	jobDir := s.JobDir(jobID)
+	jobsRoot := filepath.Join(s.root, "jobs")
+	rel, err := filepath.Rel(jobsRoot, jobDir)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return false, fmt.Errorf("job directory escapes store root")
+	}
+	info, err := os.Stat(jobDir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
@@ -118,28 +132,37 @@ func (s *LocalStore) appendEvent(jobID, eventType string, payload any, now time.
 	if err := s.EnsureJob(jobID); err != nil {
 		return Event{}, err
 	}
+	lockPath, err := s.safeJobPath(jobID, "append.lock")
+	if err != nil {
+		return Event{}, err
+	}
+	jobDir := s.JobDir(jobID)
+	lockRel, err := filepath.Rel(jobDir, lockPath)
+	if err != nil || lockRel == ".." || strings.HasPrefix(lockRel, ".."+string(os.PathSeparator)) {
+		return Event{}, fmt.Errorf("append lock escapes job directory")
+	}
 
 	var (
-		lock *fsx.FileLock
-		err  error
+		lock    *fsx.FileLock
+		lockErr error
 	)
 	for attempt := 0; attempt < appendLockRetryAttempts; attempt++ {
-		lock, err = fsx.AcquireLockWithOptions(
-			s.appendLockPath(jobID),
+		lock, lockErr = fsx.AcquireLockWithOptions(
+			lockPath,
 			fmt.Sprintf("pid=%d;ts=%d", os.Getpid(), now.UnixNano()),
 			fsx.LockOptions{StaleAfter: appendLockStaleAfter},
 		)
-		if err == nil {
+		if lockErr == nil {
 			break
 		}
-		if errors.Is(err, fsx.ErrLockBusy) {
+		if errors.Is(lockErr, fsx.ErrLockBusy) {
 			time.Sleep(1 * time.Millisecond)
 			continue
 		}
-		return Event{}, err
+		return Event{}, lockErr
 	}
-	if err != nil {
-		return Event{}, err
+	if lockErr != nil {
+		return Event{}, lockErr
 	}
 	defer func() { _ = lock.Release() }()
 
@@ -160,6 +183,9 @@ func (s *LocalStore) appendEvent(jobID, eventType string, payload any, now time.
 }
 
 func (s *LocalStore) appendEventLocked(jobID, eventType string, payload any, now time.Time, seq int64) (Event, error) {
+	if err := validateJobID(jobID); err != nil {
+		return Event{}, err
+	}
 	if seq <= 0 {
 		seq = 1
 	}
@@ -185,8 +211,16 @@ func (s *LocalStore) appendEventLocked(jobID, eventType string, payload any, now
 		return Event{}, fmt.Errorf("marshal event: %w", err)
 	}
 
-	// #nosec G304 -- eventsPath is store-scoped and job_id-validated.
-	f, err := os.OpenFile(s.eventsPath(jobID), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	eventsPath, err := s.safeJobPath(jobID, "events.jsonl")
+	if err != nil {
+		return Event{}, err
+	}
+	jobDir := s.JobDir(jobID)
+	eventsRel, err := filepath.Rel(jobDir, eventsPath)
+	if err != nil || eventsRel == ".." || strings.HasPrefix(eventsRel, ".."+string(os.PathSeparator)) {
+		return Event{}, fmt.Errorf("events file escapes job directory")
+	}
+	f, err := os.OpenFile(eventsPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return Event{}, fmt.Errorf("open events file: %w", err)
 	}
@@ -206,8 +240,15 @@ func (s *LocalStore) LoadEvents(jobID string) ([]Event, error) {
 	if err := validateJobID(jobID); err != nil {
 		return nil, err
 	}
-	path := s.eventsPath(jobID)
-	// #nosec G304 -- path is store-scoped and job_id-validated.
+	path, err := s.safeJobPath(jobID, "events.jsonl")
+	if err != nil {
+		return nil, err
+	}
+	jobDir := s.JobDir(jobID)
+	eventsRel, err := filepath.Rel(jobDir, path)
+	if err != nil || eventsRel == ".." || strings.HasPrefix(eventsRel, ".."+string(os.PathSeparator)) {
+		return nil, fmt.Errorf("events file escapes job directory")
+	}
 	f, err := os.Open(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -275,7 +316,11 @@ func (s *LocalStore) SaveSnapshot(jobID string, lastSeq int64, state any, now ti
 		return fmt.Errorf("marshal snapshot: %w", err)
 	}
 
-	if err := fsx.AtomicWriteFile(s.snapshotPath(jobID), raw, 0o600); err != nil {
+	snapshotPath, err := s.safeJobPath(jobID, "snapshot.json")
+	if err != nil {
+		return err
+	}
+	if err := fsx.AtomicWriteFile(snapshotPath, raw, 0o600); err != nil {
 		return fmt.Errorf("write snapshot: %w", err)
 	}
 	return nil
@@ -285,7 +330,16 @@ func (s *LocalStore) LoadSnapshot(jobID string) (*Snapshot, error) {
 	if err := validateJobID(jobID); err != nil {
 		return nil, err
 	}
-	raw, err := os.ReadFile(s.snapshotPath(jobID))
+	snapshotPath, err := s.safeJobPath(jobID, "snapshot.json")
+	if err != nil {
+		return nil, err
+	}
+	jobDir := s.JobDir(jobID)
+	snapshotRel, err := filepath.Rel(jobDir, snapshotPath)
+	if err != nil || snapshotRel == ".." || strings.HasPrefix(snapshotRel, ".."+string(os.PathSeparator)) {
+		return nil, fmt.Errorf("snapshot file escapes job directory")
+	}
+	raw, err := os.ReadFile(snapshotPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
@@ -301,8 +355,15 @@ func (s *LocalStore) LoadSnapshot(jobID string) (*Snapshot, error) {
 }
 
 func validateJobID(jobID string) error {
-	if strings.TrimSpace(jobID) == "" {
+	jobID = strings.TrimSpace(jobID)
+	if jobID == "" {
 		return fmt.Errorf("empty job_id")
+	}
+	if strings.Contains(jobID, "..") || strings.Contains(jobID, "/") || strings.Contains(jobID, "\\") {
+		return fmt.Errorf("invalid job_id %q: path separators and '..' are not allowed", jobID)
+	}
+	if filepath.Clean(jobID) != jobID {
+		return fmt.Errorf("invalid job_id %q: must be a single path component", jobID)
 	}
 	if !jobIDPattern.MatchString(jobID) {
 		return fmt.Errorf("invalid job_id %q: only [a-zA-Z0-9._-] allowed", jobID)
