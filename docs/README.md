@@ -40,7 +40,12 @@ This is the authoritative documentation map for Wrkr.
 - GitHub Actions kit: `docs/ecosystem/github_actions_kit.md`
 - Serve mode deployment: `docs/deployment/serve_mode.md`
 - CI regress kit: `docs/ci_regress_kit.md`
+- CI required checks: `docs/ci_required_checks.md`
+- CI permissions model: `docs/ci_permissions_model.md`
+- CI cache strategy: `docs/ci_cache_strategy.md`
 - Project defaults: `docs/project_defaults.md`
 - Runtime SLO: `docs/slo/runtime_slo.md`
 - Retention profiles: `docs/slo/retention_profiles.md`
+- CodeQL triage: `docs/security/codeql_triage.md`
+- OSS license policy: `docs/security/license_policy.md`
 - Release hardening checklist: `docs/hardening/release_checklist.md`

@@ -2,7 +2,9 @@ SHELL := /bin/bash
 
 .PHONY: hooks fmt lint lint-fast test test-fast build \
 	sast-fast codeql-local license-check \
-	test-e2e test-acceptance test-contracts test-conformance \
+	test-e2e test-acceptance test-contracts test-ent-consumer-contract test-conformance \
+	test-ticket-footer-conformance test-github-summary-golden test-wrkr-compatible-conformance test-serve-hardening \
+	install-smoke release-smoke \
 	test-runtime-slo test-hardening-acceptance test-v1-acceptance \
 	test-adoption test-uat-local docs-site-install docs-site-build docs-site-lint
 
@@ -49,8 +51,34 @@ test-acceptance:
 test-contracts:
 	./scripts/test_contracts.sh
 
+test-ent-consumer-contract:
+	./scripts/test_ent_consumer_contract.sh
+
+test-ticket-footer-conformance:
+	./scripts/test_ticket_footer_conformance.sh
+
+test-github-summary-golden:
+	./scripts/test_github_summary_golden.sh
+
+test-wrkr-compatible-conformance:
+	./scripts/test_wrkr_compatible_conformance.sh
+
+test-serve-hardening:
+	./scripts/test_serve_hardening.sh
+
 test-conformance:
-	@echo "[wrkr] test-conformance placeholder (Epic >0)"
+	./scripts/test_ticket_footer_conformance.sh
+	./scripts/test_github_summary_golden.sh
+	./scripts/test_wrkr_compatible_conformance.sh
+	./scripts/test_serve_hardening.sh
+
+install-smoke:
+	go build -o ./bin/wrkr ./cmd/wrkr
+	./bin/wrkr --json version >/dev/null
+
+release-smoke:
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ./bin/wrkr-linux-amd64 ./cmd/wrkr
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o ./bin/wrkr-darwin-arm64 ./cmd/wrkr
 
 test-runtime-slo:
 	@echo "[wrkr] test-runtime-slo placeholder (Epic >0)"

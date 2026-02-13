@@ -1,0 +1,30 @@
+name: windows-lint-nightly
+
+on:
+  schedule:
+    - cron: "47 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-lint-nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-lint-nightly:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Setup Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.25.x'
+
+      - name: Windows lint and test
+        run: |
+          go vet ./...
+          go test ./...

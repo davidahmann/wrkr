@@ -24,6 +24,22 @@ else
   echo "[wrkr] govulncheck not runnable, skipping"
 fi
 
+if command -v gitleaks >/dev/null 2>&1 && can_run gitleaks; then
+  echo "[wrkr] running gitleaks"
+  gitleaks detect --no-banner --redact --source .
+  ran_one=1
+elif command -v trufflehog >/dev/null 2>&1 && can_run trufflehog; then
+  echo "[wrkr] running trufflehog"
+  trufflehog filesystem . --only-verified --no-update
+  ran_one=1
+else
+  echo "[wrkr] secret scanner not installed; running private-key heuristic"
+  if rg -n --hidden --glob '!**/.git/**' 'BEGIN (RSA|EC|DSA|OPENSSH) PRIVATE KEY' . >/dev/null 2>&1; then
+    echo "[wrkr] potential private key material detected"
+    exit 1
+  fi
+fi
+
 if [[ "$ran_one" -eq 0 ]]; then
   echo "[wrkr] no SAST tools installed; running go vet fallback"
   go vet ./...
