@@ -36,6 +36,9 @@ type LocalStore struct {
 }
 
 var jobIDPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+var ErrCASConflict = errors.New("event append conflict")
+
+const appendLockStaleAfter = 2 * time.Minute
 
 func DefaultRoot() (string, error) {
 	home, err := os.UserHomeDir()
@@ -104,11 +107,23 @@ func (s *LocalStore) JobExists(jobID string) (bool, error) {
 }
 
 func (s *LocalStore) AppendEvent(jobID, eventType string, payload any, now time.Time) (Event, error) {
+	return s.appendEvent(jobID, eventType, payload, now, nil)
+}
+
+func (s *LocalStore) AppendEventCAS(jobID, eventType string, payload any, expectedLastSeq int64, now time.Time) (Event, error) {
+	return s.appendEvent(jobID, eventType, payload, now, &expectedLastSeq)
+}
+
+func (s *LocalStore) appendEvent(jobID, eventType string, payload any, now time.Time, expectedLastSeq *int64) (Event, error) {
 	if err := s.EnsureJob(jobID); err != nil {
 		return Event{}, err
 	}
 
-	lock, err := fsx.AcquireLock(s.appendLockPath(jobID), strconv.FormatInt(now.UnixNano(), 10))
+	lock, err := fsx.AcquireLockWithOptions(
+		s.appendLockPath(jobID),
+		strconv.FormatInt(now.UnixNano(), 10),
+		fsx.LockOptions{StaleAfter: appendLockStaleAfter},
+	)
 	if err != nil {
 		return Event{}, err
 	}
@@ -119,9 +134,20 @@ func (s *LocalStore) AppendEvent(jobID, eventType string, payload any, now time.
 		return Event{}, err
 	}
 
-	seq := int64(1)
+	currentLastSeq := int64(0)
 	if len(events) > 0 {
-		seq = events[len(events)-1].Seq + 1
+		currentLastSeq = events[len(events)-1].Seq
+	}
+	if expectedLastSeq != nil && currentLastSeq != *expectedLastSeq {
+		return Event{}, ErrCASConflict
+	}
+
+	return s.appendEventLocked(jobID, eventType, payload, now, currentLastSeq+1)
+}
+
+func (s *LocalStore) appendEventLocked(jobID, eventType string, payload any, now time.Time, seq int64) (Event, error) {
+	if seq <= 0 {
+		seq = 1
 	}
 
 	var raw json.RawMessage
