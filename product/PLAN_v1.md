@@ -17,7 +17,13 @@ This plan is written for top-to-bottom execution with minimal interpretation. Ev
 - Canonicalization for any digest-bearing JSON uses RFC 8785 (JCS).
 - Digests use `sha256`; signing uses `ed25519`.
 - Default posture is offline-first, deterministic outputs, and reference-only artifact capture.
+- Deterministic operator-facing outputs are written under `./wrkr-out/` by default (jobpacks, integrations, reports); output layout is a contract and is append-only within `v1.x`.
 - Raw artifact capture and other unsafe behaviors require explicit `--unsafe-*` flags and are surfaced in `--json` output.
+- Job execution claims use lease + heartbeat semantics; conflicting claims fail closed with `E_LEASE_CONFLICT` and never double-execute.
+- Resume is gated by `environment_fingerprint`; mismatches block with `E_ENV_FINGERPRINT_MISMATCH` unless explicitly overridden (override is recorded in the job event ledger).
+- `wrkr serve` is a local transport surface: loopback-only by default; non-loopback requires explicit auth token and request-size limits; no network listener by default.
+- GitHub-native summaries are deterministic markdown generated from jobpacks/checkpoints/acceptance results and are written under `./wrkr-out/reports/`.
+- "Wrkr-compatible" is a real, testable claim enforced by conformance + parity suites; it is release-blocking.
 - Major commands support `--json` and `--explain` with bounded summaries.
 - Coverage threshold is `>= 85%` for Go core/CLI and Python SDK, enforced in CI.
 - Documentation ownership mirrors Gait: `docs/contracts/*` are normative; `README.md` is onboarding only.
@@ -47,27 +53,36 @@ This plan is written for top-to-bottom execution with minimal interpretation. Ev
 |   |-- accept/
 |   |-- adapters/
 |   |-- approve/
+|   |-- bridge/
 |   |-- budget/
 |   |-- doctor/
+|   |-- envfp/
 |   |-- errors/
 |   |-- export/
 |   |-- fsx/
 |   |-- jcs/
+|   |-- lease/
+|   |-- out/
 |   |-- pack/
 |   |-- projectconfig/
 |   |-- queue/
+|   |-- report/
 |   |-- runner/
 |   |-- schema/
 |   |   `-- v1/
+|   |-- serve/
 |   |-- sign/
 |   |-- status/
 |   |-- store/
 |   `-- zipx/
 |-- schemas/v1/
 |   |-- accept/
+|   |-- bridge/
 |   |-- checkpoint/
 |   |-- jobspec/
 |   |-- jobpack/
+|   |-- report/
+|   |-- serve/
 |   `-- status/
 |-- sdk/python/wrkr/
 |-- internal/
@@ -109,8 +124,14 @@ v1 is complete only when all are true:
 - `wrkr demo` works offline in under 60 seconds and produces a verifiable `jobpack`.
 - `wrkr submit -> status -> checkpoint -> approve -> resume -> export -> accept` works deterministically from a fresh checkout.
 - Crash/restart recovery preserves committed state; resume is deterministic from last durable checkpoint.
+- Lease + heartbeat semantics prevent double execution; concurrent runners fail closed with `E_LEASE_CONFLICT`.
+- Resume blocks safely on environment mismatch with `E_ENV_FINGERPRINT_MISMATCH` and requires explicit override to continue.
 - `jobpack` verify catches tampering and schema mismatch with stable reason and exit codes.
 - Acceptance harness runs locally and in CI with stable JSON and optional JUnit output.
+- `wrkr-out` output layout is stable and validated (jobpacks, reports, integration artifacts).
+- `wrkr bridge work-item` produces deterministic payloads (with `--dry-run`) from `blocked` and `decision-needed` checkpoints.
+- GitHub-native summaries are produced deterministically and the GitHub Actions kit publishes them via `GITHUB_STEP_SUMMARY`.
+- `wrkr serve` passes loopback-default hardening tests (auth required for non-loopback, request limits, no path traversal).
 - PR fast lane, mainline CI lane, and nightly deep lanes are implemented and green.
 - Docs map, contracts, architecture, and runbooks are complete and non-duplicative.
 - Release workflow emits signed multi-platform artifacts, checksums, SBOM, scan output, and provenance.
@@ -162,8 +183,8 @@ Tasks:
 
 Required targets:
 - `fmt`, `lint`, `lint-fast`, `test`, `test-fast`, `build`
-- `test-e2e`, `test-acceptance`, `test-contracts`, `test-runtime-slo`, `test-hardening-acceptance`
-- `test-v1-acceptance`, `test-uat-local`
+- `test-e2e`, `test-acceptance`, `test-contracts`, `test-conformance`, `test-runtime-slo`, `test-hardening-acceptance`
+- `test-v1-acceptance`, `test-adoption`, `test-uat-local`
 - `docs-site-install`, `docs-site-build`, `docs-site-lint`
 
 Acceptance criteria:
@@ -192,20 +213,28 @@ Tasks:
 - Add JSON schemas for:
   - `jobspec`
   - `checkpoint`
+  - `environment_fingerprint`
+  - `lease` record
   - `jobpack manifest`
   - `job`
   - `events` record
   - `artifacts manifest`
   - `accept result`
   - `approval record`
+  - `work item` payload (bridge)
+  - `report` outputs (GitHub summary)
+  - `serve` API contract (OpenAPI + error envelope mapping)
   - `status response`
 - Include required fields: `schema_id`, `schema_version`, `created_at`, `producer_version`.
 
 Repo paths:
 - `schemas/v1/jobspec/`
 - `schemas/v1/checkpoint/`
+- `schemas/v1/bridge/`
 - `schemas/v1/jobpack/`
 - `schemas/v1/accept/`
+- `schemas/v1/report/`
+- `schemas/v1/serve/`
 - `schemas/v1/status/`
 
 Acceptance criteria:
@@ -244,6 +273,7 @@ Acceptance criteria:
 Tasks:
 - Add ADR for error categories and exit-code mapping.
 - Implement stable error envelope for `--json` output.
+- Lock reason codes for lease conflicts and environment gating; document `wrkr serve` HTTP status mapping vs CLI exit codes.
 
 Repo paths:
 - `docs/adr/`
@@ -316,6 +346,26 @@ Repo paths:
 Acceptance criteria:
 - Stress tests show no malformed log lines and no lock starvation beyond defined thresholds.
 
+### Story 2.5: Lease + heartbeat job claims (no double-execute)
+
+Tasks:
+- Define a `worker_id` and `lease_id` model persisted in job state.
+- Implement `lease acquire` on job start/resume with deterministic conflict handling.
+- Implement heartbeat writes and lease expiry semantics (TTL + interval, configurable with safe defaults).
+- Ensure lease state is surfaced in `wrkr status --json`.
+- Persist lease and heartbeat activity in the event ledger and include in `jobpack` export.
+
+Repo paths:
+- `core/lease/`
+- `core/runner/`
+- `core/store/`
+- `core/status/`
+- `cmd/wrkr/status.go`
+
+Acceptance criteria:
+- Two `wrkr` processes cannot both run the same job; the loser fails closed with `E_LEASE_CONFLICT`.
+- After TTL expiry without heartbeat, a new runner can claim lease and resume deterministically.
+
 ---
 
 ## Epic 3: Runner, Checkpoint Protocol, Budgets, and Approvals
@@ -378,6 +428,26 @@ Repo paths:
 Acceptance criteria:
 - Status outputs are deterministic and machine-parseable.
 
+### Story 3.5: Environment fingerprint capture and resume gating
+
+Tasks:
+- Implement `environment_fingerprint` capture based on JobSpec rules and store it durably with the job.
+- On `wrkr resume`, compare current environment fingerprint to the recorded fingerprint:
+  - if incompatible, emit a `blocked` checkpoint with `reason_codes=[E_ENV_FINGERPRINT_MISMATCH]` and stop
+  - require explicit override flag to continue, and record the override in the event ledger
+- Surface environment mismatch state in `wrkr status` (bounded text and `--json`).
+
+Repo paths:
+- `core/envfp/`
+- `core/runner/`
+- `core/status/`
+- `cmd/wrkr/resume.go`
+- `cmd/wrkr/status.go`
+
+Acceptance criteria:
+- Resume deterministically blocks on mismatch with stable reason codes and exit codes.
+- Override path is explicit and auditably recorded in job history and jobpack export.
+
 ---
 
 ## Epic 4: Jobpack Assembly, Verify, Inspect, and Diff
@@ -439,10 +509,32 @@ Tasks:
 
 Repo paths:
 - `cmd/wrkr/receipt.go`
-- `docs/contracts/intent_receipt_conformance.md` (Wrkr equivalent naming)
+- `docs/contracts/ticket_footer_conformance.md`
 
 Acceptance criteria:
 - Footer contract is stable and CI-enforced.
+
+### Story 4.5: Deterministic `./wrkr-out/` output layout (jobpacks, integrations, reports)
+
+Tasks:
+- Implement an output-path resolver that defaults to `./wrkr-out/` and can be overridden explicitly (`--out-dir`).
+- Standardize and document v1 default subpaths:
+  - `./wrkr-out/jobpacks/jobpack_<job_id>.zip`
+  - `./wrkr-out/integrations/<lane>/...`
+  - `./wrkr-out/reports/...`
+- Update `wrkr demo`, `wrkr export`, and `wrkr accept run` to write to the standardized layout.
+- Add golden tests for output path generation and filesystem writes (cross-platform).
+
+Repo paths:
+- `core/out/`
+- `cmd/wrkr/demo.go`
+- `cmd/wrkr/export.go`
+- `cmd/wrkr/accept.go`
+- `docs/contracts/`
+
+Acceptance criteria:
+- Default outputs land in the documented locations and are consistent across OS matrix.
+- Output layout is treated as an additive contract within `v1.x` (no breaking moves).
 
 ---
 
@@ -493,6 +585,27 @@ Repo paths:
 Acceptance criteria:
 - CI can fail deterministically based on stable exit code behavior.
 
+### Story 5.4: GitHub-native summaries (jobpack -> deterministic markdown)
+
+Tasks:
+- Implement deterministic summary generator for GitHub surfaces:
+  - final checkpoint summary
+  - acceptance result pass/fail + top failures
+  - artifact manifest deltas and key pointers
+- Add CLI surface for summaries (either `wrkr report github <job_id|jobpack>` or a flag on `wrkr accept run --ci`).
+- Write summary artifacts under `./wrkr-out/reports/` and support writing to `GITHUB_STEP_SUMMARY` when present.
+- Add golden tests for markdown output and stable ordering.
+
+Repo paths:
+- `core/report/`
+- `cmd/wrkr/report.go`
+- `cmd/wrkr/accept.go`
+- `docs/contracts/`
+
+Acceptance criteria:
+- The same jobpack produces identical markdown summary output across OS matrix.
+- CI can publish the summary without requiring a hosted UI.
+
 ---
 
 ## Epic 6: CLI Surface, Wrap Mode, and Adapter Layer
@@ -507,8 +620,12 @@ Tasks:
   - `checkpoint list/show`
   - `pause`, `resume`, `cancel`
   - `approve`
+  - `wrap`
   - `export`, `verify`
   - `accept init/run`
+  - `report github`
+  - `bridge work-item`
+  - `serve`
   - `job inspect/diff`
   - `doctor`
 
@@ -537,6 +654,7 @@ Acceptance criteria:
 Tasks:
 - Ship one structured adapter for coding-agent workflows.
 - Adapter emits step events, tool-call counts, artifacts, and checkpoint context.
+- Step events include explicit `executed` semantics so non-executed work is fail-closed and reviewable.
 
 Repo paths:
 - `core/adapters/reference/`
@@ -550,6 +668,7 @@ Acceptance criteria:
 Tasks:
 - Implement canonical sidecar example that reads normalized request and invokes `wrkr` CLI.
 - Keep sidecar as transport only with no embedded decision logic.
+- Ensure sidecar artifacts and logs are written deterministically under `./wrkr-out/integrations/<lane>/...`.
 
 Repo paths:
 - `examples/sidecar/`
@@ -570,6 +689,51 @@ Repo paths:
 
 Acceptance criteria:
 - SDK can drive wrap/status/accept workflows without re-implementing Wrkr logic.
+
+### Story 6.6: Checkpoint-to-work-item bridge (deterministic interrupts)
+
+Tasks:
+- Implement `wrkr bridge work-item <job_id> --checkpoint <id> [--dry-run]`.
+- Convert `blocked` and `decision-needed` checkpoints into a stable payload with:
+  - required action
+  - reason codes
+  - artifact pointers
+  - next recommended commands (resume/approve/export/accept)
+- Write outputs under `./wrkr-out/reports/` by default and keep stdout output bounded and stable.
+- Add provider templates as purely presentational mappings (GitHub issue, Jira ticket) without embedding provider credentials in v1.
+
+Repo paths:
+- `core/bridge/`
+- `schemas/v1/bridge/`
+- `cmd/wrkr/bridge.go`
+- `docs/contracts/`
+
+Acceptance criteria:
+- Identical inputs produce identical bridge payload bytes (golden tests).
+- `--dry-run` never mutates state and clearly prints the next commands to run.
+
+### Story 6.7: Local service mode (`wrkr serve`) with loopback-default hardening
+
+Tasks:
+- Implement `wrkr serve` exposing a minimal local HTTP API for:
+  - submit/status
+  - checkpoint list/show
+  - approve
+  - export/verify
+  - accept/report summary
+- Default bind is loopback only; non-loopback requires explicit flags including auth token and request-size limits.
+- Ensure HTTP responses reuse existing schemas and the same error envelope semantics as the CLI (`--json`).
+- Add hardening tests for auth enforcement, request limits, and path traversal attempts.
+
+Repo paths:
+- `core/serve/`
+- `cmd/wrkr/serve.go`
+- `docs/contracts/serve_api.md`
+- `internal/integration/`
+
+Acceptance criteria:
+- `wrkr serve` is safe-by-default (no listener without explicit command; loopback-only by default).
+- Non-loopback mode is guarded by mandatory auth and strict request limits.
 
 ---
 
@@ -606,8 +770,19 @@ Acceptance criteria:
 
 Tasks:
 - Add `docs/contracts/primitive_contract.md` for Wrkr primitives.
-- Add contract docs for artifact graph, checkpoint protocol, and acceptance result.
-- Add intent/receipt style conformance equivalent for ticket footer + verify behavior.
+- Add contract docs for:
+  - `./wrkr-out/` output layout (jobpacks, integrations, reports)
+  - lease + heartbeat semantics
+  - `environment_fingerprint` capture and resume gating
+  - checkpoint protocol semantics (types, required fields, bounded summary rules)
+  - jobpack contents and verify rules
+  - acceptance result schema and exit code mapping
+  - GitHub summary format (deterministic markdown)
+  - work-item bridge payload contract
+  - `wrkr serve` API surface (endpoints + OpenAPI file)
+- Add conformance docs:
+  - ticket footer + verify behavior
+  - "Wrkr-compatible" lane definition and how conformance/parity are enforced in CI
 
 Acceptance criteria:
 - Contract docs are referenced from README and CI conformance scripts.
@@ -617,7 +792,10 @@ Acceptance criteria:
 Tasks:
 - Add runbooks:
   - integration checklist
+  - blessed lane (worker boundary) integration kit
   - CI accept kit
+  - GitHub Actions kit (verify/accept/report summary)
+  - `wrkr serve` mode deployment + hardening
   - production defaults
   - runtime SLO
   - retention profiles
@@ -625,6 +803,9 @@ Tasks:
 
 Repo paths:
 - `docs/integration_checklist.md`
+- `docs/ecosystem/blessed_lane.md`
+- `docs/ecosystem/github_actions_kit.md`
+- `docs/deployment/serve_mode.md`
 - `docs/ci_regress_kit.md` (Wrkr naming may remain for compatibility)
 - `docs/project_defaults.md`
 - `docs/slo/runtime_slo.md`
@@ -648,6 +829,27 @@ Repo paths:
 
 Acceptance criteria:
 - `docs-site` builds in CI and deploys from main.
+
+### Story 7.6: Integration RFC templates and conformance kit docs
+
+Tasks:
+- Add an integration RFC template describing what a "lane" must specify:
+  - adapter type (wrap/sidecar/structured)
+  - deterministic `./wrkr-out/integrations/<lane>/...` outputs
+  - checkpoint cadence and decision points
+  - required artifacts and acceptance checks
+  - security posture (what is captured, redaction rules)
+- Add documentation for the "Wrkr-compatible" claim and the conformance/parity gates that enforce it.
+- Add one worked example RFC for the blessed lane.
+
+Repo paths:
+- `docs/ecosystem/integration_rfc_template.md`
+- `docs/contracts/wrkr_compatible.md`
+- `docs/ecosystem/blessed_lane.md`
+
+Acceptance criteria:
+- New adapters/lanes can be proposed without ambiguity using the template.
+- Conformance and parity scripts in CI reference the canonical docs.
 
 ---
 
@@ -707,15 +909,26 @@ Acceptance criteria:
 Tasks:
 - Add dedicated contract workflow checks for schema stability and consumer compatibility.
 - Add ticket footer/verify conformance script.
+- Add "Wrkr-compatible" conformance suite that validates end-to-end:
+  - demo -> export -> verify -> accept -> report (GitHub summary)
+  - deterministic `./wrkr-out/` outputs (jobpacks, reports, integrations fixtures)
+  - stable exit codes and reason codes
+- Add adapter parity harness asserting wrap vs sidecar vs structured adapter behavior matches for core contracts.
+- Add service-mode hardening checks (`wrkr serve` loopback-default, non-loopback guardrails).
 
 Repo paths:
 - `scripts/test_contracts.sh`
 - `scripts/test_ent_consumer_contract.sh`
-- `scripts/test_intent_receipt_conformance.sh`
-- `.github/workflows/intent-receipt-conformance.yml`
+- `scripts/test_ticket_footer_conformance.sh`
+- `scripts/test_wrkr_compatible_conformance.sh`
+- `scripts/test_github_summary_golden.sh`
+- `scripts/test_serve_hardening.sh`
+- `.github/workflows/ticket-footer-conformance.yml`
+- `.github/workflows/wrkr-compatible-conformance.yml`
 
 Acceptance criteria:
 - Contract drifts fail CI deterministically.
+- Conformance/parity failures produce artifact-rich logs and are triageable without a hosted UI.
 
 ### Story 8.5: Security scanning and code analysis
 
@@ -773,6 +986,9 @@ Tasks:
   - concurrent append corruption
   - session lock contention
   - oversized payload and malformed input handling
+  - lease conflict, heartbeat expiry, and safe re-claim behavior
+  - environment fingerprint mismatch gating and override audit trail
+  - `wrkr serve` abuse cases (auth missing, non-loopback guardrails, request-size limits, path traversal)
   - trace/artifact uniqueness
 - Add soak test for long-running sessions.
 
@@ -869,13 +1085,18 @@ Objective: make onboarding and operationalization reproducible in one lane.
 
 Tasks:
 - Publish one canonical integration lane for v1:
-  - coding-agent wrapper
-  - GitHub Actions acceptance/verify workflow
+  - coding-agent wrapper (wrap + reference structured adapter)
+  - worker boundary wrapper/sidecar templates with deterministic outputs under `./wrkr-out/integrations/<lane>/...`
+  - GitHub Actions kit for verify/accept/report summary (GitHub-native summaries via `GITHUB_STEP_SUMMARY`)
+  - conformance script and CI template that makes "Wrkr-compatible" a testable claim
 - Keep other adapters as parity references.
 
 Repo paths:
 - `docs/integration_checklist.md`
+- `docs/ecosystem/blessed_lane.md`
+- `docs/ecosystem/github_actions_kit.md`
 - `examples/integrations/`
+- `examples/ci/`
 - `.github/workflows/adoption-regress-template.yml`
 
 Acceptance criteria:
@@ -889,6 +1110,10 @@ Tasks:
   - verify output
   - submit/status/checkpoint flow
   - accept output
+  - report output (GitHub summary)
+  - `wrkr-out` output layout stability
+  - bridge output (work-item payload)
+  - serve mode smoke and hardening guardrails
   - wrap mode block/fail-safe behavior
 
 Repo paths:
@@ -933,12 +1158,13 @@ Run in order:
 6. `make test-e2e`
 7. `make test-contracts`
 8. `make test-acceptance`
-9. `make test-v1-acceptance`
-10. `make test-runtime-slo`
-11. `make test-hardening-acceptance`
-12. `make test-adoption`
-13. `make docs-site-build`
-14. `make test-uat-local`
+9. `make test-conformance`
+10. `make test-v1-acceptance`
+11. `make test-runtime-slo`
+12. `make test-hardening-acceptance`
+13. `make test-adoption`
+14. `make docs-site-build`
+15. `make test-uat-local`
 
 If any command fails, fix and rerun from failing step.
 
@@ -982,5 +1208,6 @@ If any command fails, fix and rerun from failing step.
 - `--json` outputs and exit codes are stable and covered by tests.
 - Commands remain offline-first unless explicitly documented otherwise.
 - Docs are updated in canonical location and linked from `docs/README.md`.
+- Conformance/parity suites and any golden outputs are updated for any contract change.
 - No product logic is duplicated into SDK/adapters/skills.
 - Security-sensitive changes include hardening docs and release checklist updates.
