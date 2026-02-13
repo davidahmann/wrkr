@@ -48,9 +48,14 @@ func ResolveWithinBase(baseDir, input string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	targetCanon := canonicalizeParent(absTarget)
+	targetCanon := canonicalizePath(absTarget)
+	lexWithin := isWithinBase(baseAbs, absTarget)
+	canonWithin := isWithinBase(baseCanon, targetCanon)
 
-	if !isWithinBase(baseAbs, absTarget) && !isWithinBase(baseCanon, targetCanon) {
+	if !canonWithin {
+		return "", fmt.Errorf("path escapes base dir: %s", input)
+	}
+	if !lexWithin && !isWithinBase(baseCanon, absTarget) {
 		return "", fmt.Errorf("path escapes base dir: %s", input)
 	}
 	return absTarget, nil
@@ -73,12 +78,36 @@ func canonicalizeExisting(path string) string {
 	return resolved
 }
 
-func canonicalizeParent(path string) string {
-	resolvedDir, err := filepath.EvalSymlinks(filepath.Dir(path))
-	if err != nil {
-		return path
+func canonicalizePath(path string) string {
+	cleaned := filepath.Clean(path)
+	probe := cleaned
+
+	for {
+		_, err := os.Lstat(probe)
+		if err == nil {
+			resolved, err := filepath.EvalSymlinks(probe)
+			if err != nil {
+				return cleaned
+			}
+			rel, err := filepath.Rel(probe, cleaned)
+			if err != nil {
+				return cleaned
+			}
+			if rel == "." {
+				return resolved
+			}
+			return filepath.Clean(filepath.Join(resolved, rel))
+		}
+		if !os.IsNotExist(err) {
+			return cleaned
+		}
+
+		next := filepath.Dir(probe)
+		if next == probe {
+			return cleaned
+		}
+		probe = next
 	}
-	return filepath.Join(resolvedDir, filepath.Base(path))
 }
 
 func isWithinBase(base, target string) bool {

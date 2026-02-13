@@ -138,3 +138,31 @@ func TestResolveWithinBaseRejectsEscape(t *testing.T) {
 		t.Fatal("expected ResolveWithinBase to reject escaping path")
 	}
 }
+
+func TestResolveWithinBaseRejectsSymlinkEscape(t *testing.T) {
+	t.Parallel()
+
+	base := t.TempDir()
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(base, "link")); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	if _, err := ResolveWithinBase(base, filepath.Join("link", "file.txt")); err == nil {
+		t.Fatal("expected symlink escape to be rejected")
+	}
+}
+
+func TestResolveWithinBaseRejectsNestedSymlinkEscape(t *testing.T) {
+	t.Parallel()
+
+	base := t.TempDir()
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(base, "link")); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	if _, err := ResolveWithinBase(base, filepath.Join("link", "nested", "file.txt")); err == nil {
+		t.Fatal("expected nested symlink escape to be rejected")
+	}
+}
