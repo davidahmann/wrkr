@@ -16,3 +16,8 @@
 
 - Append-only events + snapshots
 - Resume and recovery are first-class paths
+
+## Platform Support (OSS v1)
+
+- Core CLI/state/artifact commands are cross-platform (macOS/Linux/Windows binaries).
+- Command-executing adapter paths (`reference`, `wrap`) invoke `sh -lc` and are documented as Unix-oriented in OSS v1.

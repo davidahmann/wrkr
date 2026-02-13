@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/davidahmann/wrkr/core/budget"
 	wrkrerrors "github.com/davidahmann/wrkr/core/errors"
 	"github.com/davidahmann/wrkr/core/queue"
 	"github.com/davidahmann/wrkr/core/runner"
@@ -26,13 +27,17 @@ type Step struct {
 }
 
 type RunOptions struct {
-	Now func() time.Time
+	Now          func() time.Time
+	StartIndex   int
+	BudgetLimits budget.Limits
+	OnAdvance    func(nextStepIndex int) error
 }
 
 type RunResult struct {
 	Status          queue.Status `json:"status"`
 	DecisionStepID  string       `json:"decision_step_id,omitempty"`
 	DecisionSummary string       `json:"decision_summary,omitempty"`
+	NextStepIndex   int          `json:"next_step_index"`
 }
 
 func Run(jobID string, steps []Step, opts RunOptions) (RunResult, error) {
@@ -42,6 +47,13 @@ func Run(jobID string, steps []Step, opts RunOptions) (RunResult, error) {
 	}
 	if len(steps) == 0 {
 		return RunResult{}, wrkrerrors.New(wrkrerrors.EInvalidInputSchema, "reference adapter requires at least one step", nil)
+	}
+	startIndex := opts.StartIndex
+	if startIndex < 0 {
+		startIndex = 0
+	}
+	if startIndex > len(steps) {
+		startIndex = len(steps)
 	}
 
 	s, err := store.New("")
@@ -53,15 +65,44 @@ func Run(jobID string, steps []Step, opts RunOptions) (RunResult, error) {
 		return RunResult{}, err
 	}
 
-	for _, step := range steps {
+	if startIndex >= len(steps) {
+		if opts.OnAdvance != nil {
+			if err := opts.OnAdvance(startIndex); err != nil {
+				return RunResult{}, err
+			}
+		}
+		state, err := r.Recover(jobID)
+		if err != nil {
+			return RunResult{}, err
+		}
+		if state.Status != queue.StatusCompleted {
+			_, _ = r.EmitCheckpoint(jobID, runner.CheckpointInput{
+				Type:    "completed",
+				Summary: "reference adapter completed",
+				Status:  queue.StatusCompleted,
+			})
+			if _, err := r.ChangeStatus(jobID, queue.StatusCompleted); err != nil {
+				return RunResult{}, err
+			}
+		}
+		return RunResult{Status: queue.StatusCompleted, NextStepIndex: startIndex}, nil
+	}
+
+	for idx := startIndex; idx < len(steps); idx++ {
+		if _, err := r.CheckBudget(jobID, opts.BudgetLimits); err != nil {
+			return RunResult{Status: queue.StatusBlockedBudget, NextStepIndex: idx}, err
+		}
+
+		step := steps[idx]
 		normalized := normalizeStep(step)
 		payload := map[string]any{
-			"adapter":   "reference",
-			"step_id":   normalized.ID,
-			"summary":   normalized.Summary,
-			"command":   normalized.Command,
-			"executed":  normalized.Executed,
-			"artifacts": normalized.Artifacts,
+			"adapter":    "reference",
+			"step_id":    normalized.ID,
+			"step_index": idx,
+			"summary":    normalized.Summary,
+			"command":    normalized.Command,
+			"executed":   normalized.Executed,
+			"artifacts":  normalized.Artifacts,
 		}
 		if _, err := s.AppendEvent(jobID, "adapter_step", payload, now()); err != nil {
 			return RunResult{}, err
@@ -83,12 +124,32 @@ func Run(jobID string, steps []Step, opts RunOptions) (RunResult, error) {
 					ReasonCodes: []string{string(wrkrerrors.EAdapterFail)},
 				})
 				_, _ = r.ChangeStatus(jobID, queue.StatusBlockedError)
-				return RunResult{Status: queue.StatusBlockedError}, wrkrerrors.New(
+				return RunResult{Status: queue.StatusBlockedError, NextStepIndex: idx}, wrkrerrors.New(
 					wrkrerrors.EAdapterFail,
 					"reference adapter step failed",
 					map[string]any{"job_id": jobID, "step_id": normalized.ID, "exit_code": code},
 				)
 			}
+		}
+
+		state, err := r.Recover(jobID)
+		if err != nil {
+			return RunResult{}, err
+		}
+		toolCallDelta := 0
+		if normalized.Executed && normalized.Command != "" {
+			toolCallDelta = 1
+		}
+		if _, err := r.UpdateCounters(
+			jobID,
+			state.RetryCount,
+			state.StepCount+1,
+			state.ToolCallCount+toolCallDelta,
+		); err != nil {
+			return RunResult{}, err
+		}
+		if _, err := r.CheckBudget(jobID, opts.BudgetLimits); err != nil {
+			return RunResult{Status: queue.StatusBlockedBudget, NextStepIndex: idx + 1}, err
 		}
 
 		checkpointType := "progress"
@@ -108,6 +169,12 @@ func Run(jobID string, steps []Step, opts RunOptions) (RunResult, error) {
 			},
 			RequiredAction: requiredAction(normalized),
 		})
+		nextStepIndex := idx + 1
+		if opts.OnAdvance != nil {
+			if err := opts.OnAdvance(nextStepIndex); err != nil {
+				return RunResult{}, err
+			}
+		}
 
 		if normalized.DecisionNeeded {
 			if _, err := r.ChangeStatus(jobID, queue.StatusBlockedDecision); err != nil {
@@ -117,6 +184,7 @@ func Run(jobID string, steps []Step, opts RunOptions) (RunResult, error) {
 				Status:          queue.StatusBlockedDecision,
 				DecisionStepID:  normalized.ID,
 				DecisionSummary: normalized.Summary,
+				NextStepIndex:   nextStepIndex,
 			}, nil
 		}
 	}
@@ -129,7 +197,12 @@ func Run(jobID string, steps []Step, opts RunOptions) (RunResult, error) {
 	if _, err := r.ChangeStatus(jobID, queue.StatusCompleted); err != nil {
 		return RunResult{}, err
 	}
-	return RunResult{Status: queue.StatusCompleted}, nil
+	if opts.OnAdvance != nil {
+		if err := opts.OnAdvance(len(steps)); err != nil {
+			return RunResult{}, err
+		}
+	}
+	return RunResult{Status: queue.StatusCompleted, NextStepIndex: len(steps)}, nil
 }
 
 func StepsFromInputs(inputs map[string]any) ([]Step, error) {

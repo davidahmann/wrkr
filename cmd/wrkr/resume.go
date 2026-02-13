@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/davidahmann/wrkr/core/approve"
+	"github.com/davidahmann/wrkr/core/dispatch"
 	wrkrerrors "github.com/davidahmann/wrkr/core/errors"
-	"github.com/davidahmann/wrkr/core/runner"
 )
 
 func runResume(args []string, jsonMode bool, stdout, stderr io.Writer, now func() time.Time) int {
@@ -51,7 +51,7 @@ func runResume(args []string, jsonMode bool, stdout, stderr io.Writer, now func(
 		approvedBy = approve.ResolveApprovedBy(approvedBy)
 	}
 
-	r, s, err := openRunner(now)
+	s, err := openStore()
 	if err != nil {
 		return printError(err, jsonMode, stderr, now)
 	}
@@ -59,7 +59,8 @@ func runResume(args []string, jsonMode bool, stdout, stderr io.Writer, now func(
 		return printError(err, jsonMode, stderr, now)
 	}
 
-	state, err := r.Resume(jobID, runner.ResumeInput{
+	result, err := dispatch.Resume(jobID, dispatch.ResumeOptions{
+		Now:                 now,
 		OverrideEnvMismatch: override,
 		OverrideReason:      overrideReason,
 		ApprovedBy:          approvedBy,
@@ -71,11 +72,11 @@ func runResume(args []string, jsonMode bool, stdout, stderr io.Writer, now func(
 	if jsonMode {
 		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
-		if err := enc.Encode(state); err != nil {
+		if err := enc.Encode(result); err != nil {
 			return printError(err, jsonMode, stderr, now)
 		}
 		return 0
 	}
-	fmt.Fprintf(stdout, "job=%s status=%s\n", state.JobID, state.Status)
+	fmt.Fprintf(stdout, "job=%s status=%s\n", result.JobID, result.Status)
 	return 0
 }

@@ -29,6 +29,36 @@ func TestExitCodeMapping(t *testing.T) {
 	}
 }
 
+func TestReasonCodeCatalogIsStable(t *testing.T) {
+	t.Parallel()
+
+	catalog := []Code{
+		EBudgetExceeded,
+		EAdapterFail,
+		ECheckpointApprovalRequired,
+		EAcceptMissingArtifact,
+		EAcceptTestFail,
+		EVerifyHashMismatch,
+		EStoreCorrupt,
+		EEnvFingerprintMismatch,
+		ELeaseConflict,
+		EInvalidStateTransition,
+		EInvalidInputSchema,
+		EUnsafeOperation,
+	}
+
+	seen := map[Code]bool{}
+	for _, code := range catalog {
+		if seen[code] {
+			t.Fatalf("duplicate reason code in catalog: %s", code)
+		}
+		seen[code] = true
+		if got := ExitCodeFor(code); got == 0 {
+			t.Fatalf("reason code %s mapped to zero exit code", code)
+		}
+	}
+}
+
 func TestErrorEnvelopeGolden(t *testing.T) {
 	fixed := time.Date(2026, 2, 13, 0, 0, 0, 0, time.UTC)
 

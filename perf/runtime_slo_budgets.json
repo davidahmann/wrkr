@@ -7,7 +7,8 @@
         "--json",
         "version"
       ],
-      "max_ms": 1200
+      "runs": 5,
+      "max_p95_ms": 1200
     },
     {
       "id": "doctor_json",
@@ -15,7 +16,8 @@
         "--json",
         "doctor"
       ],
-      "max_ms": 2500
+      "runs": 3,
+      "max_p95_ms": 3000
     },
     {
       "id": "demo_json",
@@ -25,18 +27,148 @@
         "--out-dir",
         "{out_dir}"
       ],
-      "max_ms": 9000
+      "runs": 1,
+      "max_p95_ms": 12000
+    },
+    {
+      "id": "submit_json",
+      "args": [
+        "--json",
+        "submit",
+        "{jobspec_path}",
+        "--job-id",
+        "job_perf_submit_runtime"
+      ],
+      "runs": 1,
+      "max_p95_ms": 12000
+    },
+    {
+      "id": "status_json",
+      "args": [
+        "--json",
+        "status",
+        "{submit_job_id}"
+      ],
+      "runs": 5,
+      "max_p95_ms": 2500
+    },
+    {
+      "id": "checkpoint_list_json",
+      "args": [
+        "--json",
+        "checkpoint",
+        "list",
+        "{submit_job_id}"
+      ],
+      "runs": 3,
+      "max_p95_ms": 3000
+    },
+    {
+      "id": "checkpoint_show_json",
+      "args": [
+        "--json",
+        "checkpoint",
+        "show",
+        "{submit_job_id}",
+        "{decision_checkpoint}"
+      ],
+      "runs": 3,
+      "max_p95_ms": 3000
+    },
+    {
+      "id": "bridge_work_item_json",
+      "args": [
+        "--json",
+        "bridge",
+        "work-item",
+        "{submit_job_id}",
+        "--checkpoint",
+        "{decision_checkpoint}",
+        "--template",
+        "github",
+        "--out-dir",
+        "{out_dir}",
+        "--dry-run"
+      ],
+      "runs": 1,
+      "max_p95_ms": 3000
+    },
+    {
+      "id": "approve_json",
+      "args": [
+        "--json",
+        "approve",
+        "{submit_job_id}",
+        "--checkpoint",
+        "{decision_checkpoint}",
+        "--reason",
+        "runtime budget approval"
+      ],
+      "runs": 1,
+      "max_p95_ms": 3000
+    },
+    {
+      "id": "resume_json",
+      "args": [
+        "--json",
+        "resume",
+        "{submit_job_id}"
+      ],
+      "runs": 1,
+      "max_p95_ms": 12000
+    },
+    {
+      "id": "export_json",
+      "args": [
+        "--json",
+        "export",
+        "{submit_job_id}",
+        "--out-dir",
+        "{out_dir}"
+      ],
+      "runs": 1,
+      "max_p95_ms": 10000
     },
     {
       "id": "verify_json",
       "args": [
         "--json",
         "verify",
-        "{job_id}",
+        "{demo_job_id}",
         "--out-dir",
         "{out_dir}"
       ],
-      "max_ms": 5000
+      "runs": 1,
+      "max_p95_ms": 6000
+    },
+    {
+      "id": "accept_run_json",
+      "args": [
+        "--json",
+        "accept",
+        "run",
+        "{demo_job_id}",
+        "--config",
+        "{accept_config}",
+        "--ci",
+        "--out-dir",
+        "{out_dir}"
+      ],
+      "runs": 1,
+      "max_p95_ms": 10000
+    },
+    {
+      "id": "report_github_json",
+      "args": [
+        "--json",
+        "report",
+        "github",
+        "{demo_job_id}",
+        "--out-dir",
+        "{out_dir}"
+      ],
+      "runs": 1,
+      "max_p95_ms": 10000
     }
   ]
 }

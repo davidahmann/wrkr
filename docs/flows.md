@@ -6,7 +6,8 @@
 2. `wrkr submit jobspec.yaml` initializes job state and runs adapter steps.
 3. Runner emits `plan`, `progress`, `decision-needed`, `blocked`, `completed` checkpoints.
 4. On decision checkpoint, manager approves with `wrkr approve`.
-5. Job resumes with `wrkr resume`.
+5. `wrkr resume` continues from the durable cursor (`next_step_index`) and executes remaining steps.
+6. If remaining steps are complete, status transitions to `completed`.
 
 ## Flow B: Wrap Adoption
 
@@ -14,6 +15,8 @@
 2. Wrap adapter emits bounded checkpoints and artifacts references.
 3. `wrkr export` creates jobpack and ticket footer.
 4. `wrkr verify` confirms integrity.
+
+Note: wrap mode executes one wrapped command invocation and does not yet expose structured step cursor continuation semantics.
 
 ## Flow C: Deterministic Acceptance
 

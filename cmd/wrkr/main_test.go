@@ -85,6 +85,22 @@ func TestRunExplainUnknownCommandJSON(t *testing.T) {
 	}
 }
 
+func TestRunHelpAliases(t *testing.T) {
+	t.Parallel()
+
+	for _, args := range [][]string{{"--help"}, {"-h"}} {
+		var out bytes.Buffer
+		var err bytes.Buffer
+		code := run(args, &out, &err, time.Now)
+		if code != 0 {
+			t.Fatalf("args=%v expected exit 0, got %d stderr=%q", args, code, err.String())
+		}
+		if !strings.Contains(out.String(), "wrkr command map:") {
+			t.Fatalf("args=%v expected help output, got %q", args, out.String())
+		}
+	}
+}
+
 func TestSplitGlobalFlagsKeepsWrapPassthroughArgs(t *testing.T) {
 	t.Parallel()
 

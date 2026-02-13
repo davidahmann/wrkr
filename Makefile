@@ -5,7 +5,7 @@ SHELL := /bin/bash
 	test-e2e test-acceptance test-contracts test-ent-consumer-contract test-conformance \
 	test-ticket-footer-conformance test-github-summary-golden test-wrkr-compatible-conformance test-serve-hardening test-release-contracts \
 	install-smoke release-smoke \
-	test-runtime-slo test-hardening-acceptance test-v1-acceptance coverage \
+	test-runtime-slo test-scale-profile test-serve-slo test-hardening-acceptance test-v1-acceptance coverage \
 	test-adoption test-uat-local docs-site-install docs-site-build docs-site-lint
 
 hooks:
@@ -88,6 +88,12 @@ test-runtime-slo:
 	python3 ./scripts/check_command_budgets.py --budgets ./perf/runtime_slo_budgets.json
 	python3 ./scripts/check_resource_budgets.py --budgets ./perf/resource_budgets.json
 
+test-scale-profile:
+	python3 ./scripts/check_scale_profiles.py --budgets ./perf/scale_profile_budgets.json
+
+test-serve-slo:
+	python3 ./scripts/check_serve_perf.py --budgets ./perf/serve_slo_budgets.json
+
 test-hardening-acceptance:
 	./scripts/test_chaos_store.sh
 	./scripts/test_chaos_runner.sh
@@ -99,6 +105,8 @@ test-v1-acceptance:
 	$(MAKE) test-acceptance
 	$(MAKE) test-conformance
 	$(MAKE) test-runtime-slo
+	$(MAKE) test-scale-profile
+	$(MAKE) test-serve-slo
 
 coverage:
 	python3 ./scripts/check_coverage_thresholds.py --config ./perf/coverage_thresholds.json

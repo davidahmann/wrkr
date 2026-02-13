@@ -129,6 +129,32 @@ func TestLeaseConflictAndExpiryClaim(t *testing.T) {
 	}
 }
 
+func TestLeaseReleaseAllowsImmediateNewClaim(t *testing.T) {
+	t.Parallel()
+
+	base := time.Date(2026, 2, 13, 10, 0, 0, 0, time.UTC)
+	r := testRunner(t, base)
+	r.now = func() time.Time { return base }
+
+	if _, err := r.InitJob("job_release"); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	if _, err := r.AcquireLease("job_release", "worker-a", "lease-a"); err != nil {
+		t.Fatalf("acquire: %v", err)
+	}
+	if _, err := r.ReleaseLease("job_release", "worker-a", "lease-a"); err != nil {
+		t.Fatalf("release: %v", err)
+	}
+
+	state, err := r.AcquireLease("job_release", "worker-b", "lease-b")
+	if err != nil {
+		t.Fatalf("re-acquire after release: %v", err)
+	}
+	if state.Lease == nil || state.Lease.WorkerID != "worker-b" {
+		t.Fatalf("expected worker-b lease, got %+v", state.Lease)
+	}
+}
+
 func TestConcurrentStatusMutationsRevalidateAfterCASConflict(t *testing.T) {
 	t.Parallel()
 

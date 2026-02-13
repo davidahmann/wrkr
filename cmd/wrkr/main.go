@@ -74,6 +74,9 @@ func run(args []string, stdout, stderr io.Writer, now func() time.Time) int {
 		fmt.Fprintf(stdout, "wrkr %s (commit=%s date=%s)\n", version, commit, date)
 		return 0
 	}
+	if filtered[0] == "help" || filtered[0] == "--help" || filtered[0] == "-h" {
+		return runHelp(stdout)
+	}
 
 	switch filtered[0] {
 	case "demo":
@@ -118,8 +121,6 @@ func run(args []string, stdout, stderr io.Writer, now func() time.Time) int {
 		return runDoctor(filtered[1:], jsonMode, stdout, stderr, now)
 	case "store":
 		return runStore(filtered[1:], jsonMode, stdout, stderr, now)
-	case "help":
-		return runHelp(stdout)
 	}
 
 	return printError(

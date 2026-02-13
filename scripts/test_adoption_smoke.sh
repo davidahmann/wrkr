@@ -101,7 +101,7 @@ HOME="$runtime_home" "$bin_path" --json resume "$submit_job_id" > "$tmp_root/res
 
 HOME="$runtime_home" "$bin_path" --json status "$submit_job_id" > "$tmp_root/status_after_resume.json" 2> "$tmp_root/status_after_resume.err" || fail_stage status_after_resume "status after resume failed"
 status_after_resume="$(json_get "$tmp_root/status_after_resume.json" "data['status']")"
-[[ "$status_after_resume" == "running" ]] || fail_stage status_after_resume "expected running after resume, got $status_after_resume"
+[[ "$status_after_resume" == "completed" ]] || fail_stage status_after_resume "expected completed after resume, got $status_after_resume"
 
 echo "[wrkr][adoption] stage=serve-hardening"
 ./scripts/test_serve_hardening.sh > "$tmp_root/serve-hardening.log" 2>&1 || fail_stage serve-hardening "serve hardening conformance failed"

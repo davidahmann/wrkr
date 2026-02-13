@@ -32,6 +32,8 @@ Run via nightly workflows:
 - `make test-adoption`
 - `make test-uat-local`
 - `make test-runtime-slo`
+- `make test-scale-profile`
+- `make test-serve-slo`
 - `make test-hardening-acceptance`
 
 Purpose: detect drift/regressions in adoption readiness, runtime budgets, and hardening guardrails.
@@ -41,6 +43,7 @@ Purpose: detect drift/regressions in adoption readiness, runtime budgets, and ha
 - Coverage thresholds are enforced by `make coverage`.
 - Config source: `perf/coverage_thresholds.json`.
 - Output report: `wrkr-out/reports/coverage_report.json`.
+- Current enforced baseline: Go `>=63%`, Python `>=85%` (ratchet upward over time).
 - Threshold changes must be explicit in PR review (ratchet up only unless a documented exception is approved).
 
 ## Release-Blocking Gates

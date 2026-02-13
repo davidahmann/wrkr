@@ -1,0 +1,15 @@
+{
+  "schema_version": "v1",
+  "profile": {
+    "job_id": "job_scale_profile",
+    "step_count": 250
+  },
+  "budgets": {
+    "submit_max_ms": 30000,
+    "status_max_ms": 5000,
+    "checkpoint_list_max_ms": 10000,
+    "export_max_ms": 30000,
+    "verify_max_ms": 20000,
+    "jobpack_max_bytes": 15000000
+  }
+}

@@ -35,7 +35,7 @@ jobs:
           python -m pip install uv
 
       - name: Performance and runtime SLO checks
-        run: make test-runtime-slo test-uat-local coverage
+        run: make test-runtime-slo test-scale-profile test-serve-slo test-uat-local coverage
 
       - name: Upload nightly artifacts
         if: always()

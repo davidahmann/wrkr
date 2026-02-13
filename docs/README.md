@@ -26,6 +26,7 @@ This is the authoritative documentation map for Wrkr.
 - Environment fingerprint: `docs/contracts/environment_fingerprint.md`
 - Jobpack + verify: `docs/contracts/jobpack_verify.md`
 - Acceptance harness contract: `docs/contracts/acceptance_contract.md`
+- Failure taxonomy contract: `docs/contracts/failure_taxonomy.md`
 - Ticket footer conformance: `docs/contracts/ticket_footer_conformance.md`
 - GitHub summary conformance: `docs/contracts/github_summary_conformance.md`
 - Work-item bridge contract: `docs/contracts/work_item_bridge_contract.md`

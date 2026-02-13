@@ -6,9 +6,10 @@ Wrkr is dispatch and supervision infrastructure for long-running agent jobs.
 
 1. `JobSpec` defines objective, adapter, budgets, and checkpoints policy.
 2. Runner executes durable steps and emits typed checkpoints.
-3. Approvals and budget stops gate forward progress deterministically.
-4. Jobpack bundles evidence for offline verification and review.
-5. Acceptance harness provides deterministic pass/fail signals.
+3. Runtime cursor (`next_step_index`) enables deterministic continuation after approval/resume.
+4. Approvals and budget stops gate forward progress deterministically.
+5. Jobpack bundles evidence for offline verification and review.
+6. Acceptance harness provides deterministic pass/fail signals.
 
 ## What Wrkr Is Not
 

@@ -2,6 +2,8 @@
 
 Wrkr v1 enforces a lightweight dependency hygiene policy for OSS operation.
 
+Project license: `MIT` (see root `LICENSE`).
+
 ## Policy
 
 - Dependencies must resolve from public module registries.
