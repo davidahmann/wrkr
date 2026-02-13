@@ -12,6 +12,7 @@ func TestValidTransitions(t *testing.T) {
 		{StatusQueued, StatusRunning},
 		{StatusRunning, StatusPaused},
 		{StatusPaused, StatusRunning},
+		{StatusPaused, StatusBlockedError},
 		{StatusRunning, StatusCompleted},
 		{StatusBlockedDecision, StatusRunning},
 	}
@@ -31,5 +32,16 @@ func TestInvalidTransitions(t *testing.T) {
 	}
 	if err := ValidateTransition(StatusCompleted, StatusRunning); err == nil {
 		t.Fatal("expected completed->running to fail")
+	}
+}
+
+func TestIsKnownStatus(t *testing.T) {
+	t.Parallel()
+
+	if !IsKnownStatus(StatusQueued) {
+		t.Fatal("expected queued to be known")
+	}
+	if IsKnownStatus(Status("not-real")) {
+		t.Fatal("expected unknown status to be rejected")
 	}
 }

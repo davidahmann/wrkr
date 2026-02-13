@@ -371,6 +371,13 @@ func (r *Runner) EmitCheckpoint(jobID string, input CheckpointInput) (*v1.Checkp
 	if status == "" {
 		status = state.Status
 	}
+	if !queue.IsKnownStatus(status) {
+		return nil, wrkrerrors.New(
+			wrkrerrors.EInvalidInputSchema,
+			"invalid checkpoint status",
+			map[string]any{"status": status},
+		)
+	}
 
 	bs := input.BudgetState
 	if bs.WallTimeSeconds == 0 && bs.RetryCount == 0 && bs.StepCount == 0 && bs.ToolCallCount == 0 {
@@ -602,10 +609,7 @@ func (r *Runner) Resume(jobID string, input ResumeInput) (*State, error) {
 		if !input.OverrideEnvMismatch {
 			if state.Status != queue.StatusBlockedError {
 				if _, err := r.ChangeStatus(jobID, queue.StatusBlockedError); err != nil {
-					var werr wrkrerrors.WrkrError
-					if !(errors.As(err, &werr) && werr.Code == wrkrerrors.EInvalidStateTransition) {
-						return nil, err
-					}
+					return nil, err
 				}
 			}
 			if _, err := r.EmitCheckpoint(jobID, CheckpointInput{

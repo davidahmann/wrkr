@@ -60,6 +60,14 @@ func run(args []string, stdout, stderr io.Writer, now func() time.Time) int {
 		return runResume(filtered[1:], jsonMode, stdout, stderr, now)
 	case "budget":
 		return runBudget(filtered[1:], jsonMode, stdout, stderr, now)
+	case "export":
+		return runExport(filtered[1:], jsonMode, stdout, stderr, now)
+	case "verify":
+		return runVerify(filtered[1:], jsonMode, stdout, stderr, now)
+	case "job":
+		return runJob(filtered[1:], jsonMode, stdout, stderr, now)
+	case "receipt":
+		return runReceipt(filtered[1:], jsonMode, stdout, stderr, now)
 	}
 
 	return printError(

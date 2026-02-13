@@ -1,9 +1,12 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"time"
 
 	wrkrerrors "github.com/davidahmann/wrkr/core/errors"
+	"github.com/davidahmann/wrkr/core/out"
 	"github.com/davidahmann/wrkr/core/runner"
 	"github.com/davidahmann/wrkr/core/store"
 )
@@ -33,4 +36,21 @@ func ensureJobExists(s *store.LocalStore, jobID string) error {
 		)
 	}
 	return nil
+}
+
+func resolveJobpackPath(target, outDir string) (path string, isPath bool) {
+	if target == "" {
+		return "", false
+	}
+	if info, err := os.Stat(target); err == nil && !info.IsDir() {
+		return target, true
+	}
+	if abs, err := filepath.Abs(target); err == nil {
+		if info, err := os.Stat(abs); err == nil && !info.IsDir() {
+			return abs, true
+		}
+	}
+
+	layout := out.NewLayout(outDir)
+	return layout.JobpackPath(target), false
 }
