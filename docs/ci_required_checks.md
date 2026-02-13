@@ -8,7 +8,15 @@ This file is the single source of truth for branch protection required checks.
 - `ci`
 - `ticket-footer-conformance`
 - `wrkr-compatible-conformance`
-- `codeql`
+- `codeql-scan`
+
+Guardrail posture:
+
+- PR-only merge path (direct push blocked)
+- branch deletion blocked
+- force-push blocked
+- admin bypass disabled
+- required conversation resolution enabled
 
 ## Bootstrap / Update (single admin)
 

@@ -3,6 +3,11 @@ set -euo pipefail
 
 echo "[wrkr] adoption smoke"
 
+if [[ $# -gt 1 ]]; then
+  echo "usage: $0 [path-to-wrkr-binary]" >&2
+  exit 2
+fi
+
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tmp_root="$(mktemp -d)"
 preserve_tmp="${WRKR_KEEP_TMP:-0}"
@@ -15,7 +20,20 @@ out_dir="$tmp_root/wrkr-out"
 mkdir -p "$runtime_home" "$out_dir"
 bin_path="$tmp_root/wrkr"
 
-CGO_ENABLED=0 go build -o "$bin_path" ./cmd/wrkr
+if [[ $# -eq 1 ]]; then
+  if [[ "$1" = /* ]]; then
+    bin_path="$1"
+  else
+    bin_path="$(pwd)/$1"
+  fi
+else
+  CGO_ENABLED=0 go build -o "$bin_path" ./cmd/wrkr
+fi
+
+if [[ ! -x "$bin_path" ]]; then
+  echo "[wrkr][adoption] binary is not executable: $bin_path" >&2
+  exit 2
+fi
 
 fail_stage() {
   local stage="$1"
@@ -104,7 +122,7 @@ status_after_resume="$(json_get "$tmp_root/status_after_resume.json" "data['stat
 [[ "$status_after_resume" == "completed" ]] || fail_stage status_after_resume "expected completed after resume, got $status_after_resume"
 
 echo "[wrkr][adoption] stage=serve-hardening"
-./scripts/test_serve_hardening.sh > "$tmp_root/serve-hardening.log" 2>&1 || fail_stage serve-hardening "serve hardening conformance failed"
+bash "$repo_root/scripts/test_serve_hardening.sh" > "$tmp_root/serve-hardening.log" 2>&1 || fail_stage serve-hardening "serve hardening conformance failed"
 
 echo "[wrkr][adoption] stage=wrap-fail-safe"
 set +e

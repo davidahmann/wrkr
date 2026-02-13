@@ -1,0 +1,31 @@
+# Wrkr
+
+> Offline-first, CLI-first dispatch and supervision substrate for long-running agent jobs.
+
+## Canonical
+- https://github.com/davidahmann/wrkr
+- https://davidahmann.github.io/wrkr/
+
+## Core Commands
+- wrkr demo
+- wrkr submit <jobspec.yaml>
+- wrkr checkpoint list <job_id>
+- wrkr approve <job_id> --checkpoint <id> --reason <text>
+- wrkr resume <job_id>
+- wrkr accept run <job_id> --config <accept.yaml>
+- wrkr export <job_id>
+- wrkr verify <job_id|path>
+- wrkr doctor --json
+
+## Primitive Model
+- Dispatch: durable execution and restart-safe lifecycle controls.
+- Checkpoint: structured supervision and approval gates.
+- Accept: deterministic checks and stable CI-friendly output.
+- Jobpack: verifiable portable evidence artifact.
+
+## LLM Resources
+- /llm/product.md
+- /llm/quickstart.md
+- /llm/security.md
+- /llm/faq.md
+- /llm/contracts.md

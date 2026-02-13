@@ -11,6 +11,19 @@ Wrkr is dispatch and supervision infrastructure for long-running agent jobs.
 5. Jobpack bundles evidence for offline verification and review.
 6. Acceptance harness provides deterministic pass/fail signals.
 
+```mermaid
+flowchart LR
+    jobspec["JobSpec"] --> dispatch["Dispatch + Runner"]
+    dispatch --> checkpoints["Typed Checkpoints"]
+    checkpoints --> approvals["Approval / Resume Gates"]
+    dispatch --> budget["Budget Enforcement"]
+    approvals --> cursor["Durable Cursor (next_step_index)"]
+    cursor --> dispatch
+    dispatch --> jobpack["Jobpack Export"]
+    jobpack --> verify["Offline Verify"]
+    verify --> accept["Acceptance Harness"]
+```
+
 ## What Wrkr Is Not
 
 - Not an agent planning framework.

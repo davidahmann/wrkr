@@ -3,17 +3,19 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3003",
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --max-warnings=0"
   },
   "dependencies": {
+    "gray-matter": "^4.0.3",
+    "highlight.js": "^11.11.1",
+    "marked": "^17.0.1",
+    "mermaid": "^11.12.0",
     "next": "16.1.6",
     "react": "19.2.4",
-    "react-dom": "19.0.0",
-    "react-markdown": "10.1.0",
-    "remark-gfm": "4.0.0"
+    "react-dom": "19.0.0"
   },
   "devDependencies": {
     "@types/node": "25.2.3",

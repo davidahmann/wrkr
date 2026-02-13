@@ -45,7 +45,7 @@
 
 - Formula generated from release checksums: yes/no
 - Tap published: yes/no
-- Tap repo/branch:
+- Tap repo/branch: `davidahmann/homebrew-tap` / `main`
 - README section updated with current tap command: yes/no
 
 ## Known Issues / Follow-Ups

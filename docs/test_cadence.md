@@ -55,3 +55,8 @@ Before release, all must be green:
 - `make test-uat-local`
 - `make test-hardening-acceptance`
 - `make coverage`
+
+## Branch Guardrails
+
+- `master` is PR-only with required checks.
+- Direct pushes and branch deletion are blocked by branch protection.

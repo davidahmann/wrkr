@@ -1,13 +1,18 @@
 name: codeql
 
 on:
-  pull_request:
+  workflow_dispatch:
   push:
     branches:
       - master
-  schedule:
-    - cron: "7 7 * * 1"
-  workflow_dispatch:
+    paths-ignore:
+      - "LICENSE"
+  pull_request:
+    paths-ignore:
+      - "LICENSE"
+  merge_group:
+    branches:
+      - master
 
 permissions:
   contents: read
@@ -15,35 +20,37 @@ permissions:
   security-events: write
 
 concurrency:
-  group: codeql-${{ github.ref }}
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  codeql:
+  analyze:
+    name: codeql-scan
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
+      - name: Setup Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.25.x'
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@f5c2471be782132e47a6e6f9c725e56730d6e9a3
         with:
-          languages: go
+          languages: go,python
+          queries: security-and-quality
 
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@f5c2471be782132e47a6e6f9c725e56730d6e9a3
+      - name: Build Go code
+        run: go build ./...
 
       - name: Analyze
         uses: github/codeql-action/analyze@f5c2471be782132e47a6e6f9c725e56730d6e9a3
         with:
-          category: "/language:go"
-          output: ./codeql-results
-          upload: false
-
-      - name: Upload SARIF artifact
-        if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
-        with:
-          name: codeql-sarif
-          path: codeql-results/*.sarif
-          if-no-files-found: error
+          upload: never

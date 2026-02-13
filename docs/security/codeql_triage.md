@@ -27,5 +27,5 @@ Output SARIF is written to:
 
 ## 4. Close
 
-- CI `codeql` must be green before merge.
+- CI check `codeql-scan` (workflow: `codeql`) must be green before merge.
 - PR description should note triage decision for each high/critical finding.

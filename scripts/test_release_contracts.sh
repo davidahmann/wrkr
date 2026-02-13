@@ -65,5 +65,27 @@ if ! grep -Fq 'git checkout "refs/tags/${TAG_NAME}"' "$workflow"; then
   echo "[wrkr][release contracts] missing explicit refs/tags checkout command"
   exit 1
 fi
+if ! grep -q -- '--tap-repo "\${{ github.repository_owner }}/homebrew-tap"' "$workflow"; then
+  echo "[wrkr][release contracts] missing homebrew-tap publish target"
+  exit 1
+fi
+if ! grep -q -- '--tap-branch main' "$workflow"; then
+  echo "[wrkr][release contracts] missing main branch tap publish target"
+  exit 1
+fi
+if ! grep -q 'Validate changelog presence' "$workflow"; then
+  echo "[wrkr][release contracts] missing changelog validation in release workflow"
+  exit 1
+fi
+if ! grep -q "github.event_name == 'push'" "$workflow"; then
+  echo "[wrkr][release contracts] missing tag-push Homebrew publish condition"
+  exit 1
+fi
+
+goreleaser_cfg="$repo_root/.goreleaser.yaml"
+if ! grep -q 'CHANGELOG.md' "$goreleaser_cfg"; then
+  echo "[wrkr][release contracts] changelog is not included in goreleaser archives"
+  exit 1
+fi
 
 echo "[wrkr] release contracts ok"

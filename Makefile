@@ -77,8 +77,7 @@ test-conformance:
 	./scripts/test_release_contracts.sh
 
 install-smoke:
-	go build -o ./bin/wrkr ./cmd/wrkr
-	./bin/wrkr --json version >/dev/null
+	./scripts/test_install.sh
 
 release-smoke:
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ./bin/wrkr-linux-amd64 ./cmd/wrkr
@@ -116,7 +115,7 @@ test-adoption:
 	./scripts/test_adapter_parity.sh
 
 test-uat-local:
-	./scripts/test_uat_local.sh
+	./scripts/test_uat_local.sh $(UAT_ARGS)
 
 docs-site-install:
 	cd docs-site && npm ci
