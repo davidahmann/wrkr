@@ -84,3 +84,51 @@ func TestRunExplainUnknownCommandJSON(t *testing.T) {
 		t.Fatalf("expected invalid input schema error, got %q", err.String())
 	}
 }
+
+func TestSplitGlobalFlagsKeepsWrapPassthroughArgs(t *testing.T) {
+	t.Parallel()
+
+	jsonMode, explainMode, filtered := splitGlobalFlags([]string{"wrap", "--", "tool", "--explain", "--json"})
+	if !jsonMode {
+		t.Fatalf("expected jsonMode=true for global json flag")
+	}
+	if explainMode {
+		t.Fatalf("expected explainMode=false for wrapped args, got true")
+	}
+	expected := "wrap -- tool --explain"
+	if strings.Join(filtered, " ") != expected {
+		t.Fatalf("expected %q, got %q", expected, strings.Join(filtered, " "))
+	}
+}
+
+func TestSplitGlobalFlagsStillSupportsTrailingGlobalJSON(t *testing.T) {
+	t.Parallel()
+
+	jsonMode, explainMode, filtered := splitGlobalFlags([]string{"status", "job_demo_1", "--json"})
+	if !jsonMode {
+		t.Fatalf("expected jsonMode=true")
+	}
+	if explainMode {
+		t.Fatalf("expected explainMode=false")
+	}
+	expected := "status job_demo_1"
+	if strings.Join(filtered, " ") != expected {
+		t.Fatalf("expected %q, got %q", expected, strings.Join(filtered, " "))
+	}
+}
+
+func TestSplitGlobalFlagsParsesTopLevelAndPreservesWrapPassthrough(t *testing.T) {
+	t.Parallel()
+
+	jsonMode, explainMode, filtered := splitGlobalFlags([]string{"--json", "--explain", "wrap", "--", "tool", "--explain"})
+	if !jsonMode {
+		t.Fatalf("expected jsonMode=true")
+	}
+	if !explainMode {
+		t.Fatalf("expected explainMode=true")
+	}
+	expected := "wrap -- tool --explain"
+	if strings.Join(filtered, " ") != expected {
+		t.Fatalf("expected %q, got %q", expected, strings.Join(filtered, " "))
+	}
+}

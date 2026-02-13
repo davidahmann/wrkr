@@ -21,20 +21,7 @@ func main() {
 }
 
 func run(args []string, stdout, stderr io.Writer, now func() time.Time) int {
-	jsonMode := false
-	explainMode := false
-	filtered := make([]string, 0, len(args))
-	for _, arg := range args {
-		if arg == "--json" {
-			jsonMode = true
-			continue
-		}
-		if arg == "--explain" {
-			explainMode = true
-			continue
-		}
-		filtered = append(filtered, arg)
-	}
+	jsonMode, explainMode, filtered := splitGlobalFlags(args)
 
 	if explainMode {
 		command := "version"
@@ -145,6 +132,54 @@ func run(args []string, stdout, stderr io.Writer, now func() time.Time) int {
 		stderr,
 		now,
 	)
+}
+
+func splitGlobalFlags(args []string) (bool, bool, []string) {
+	jsonMode := false
+	explainMode := false
+	filtered := make([]string, 0, len(args))
+
+	passthroughSplit := wrapPassthroughSplitIndex(args)
+	for i, arg := range args {
+		if arg == "--json" {
+			jsonMode = true
+			continue
+		}
+		if arg == "--explain" {
+			if passthroughSplit >= 0 && i > passthroughSplit {
+				filtered = append(filtered, arg)
+				continue
+			}
+			explainMode = true
+			continue
+		}
+		filtered = append(filtered, arg)
+	}
+
+	return jsonMode, explainMode, filtered
+}
+
+func wrapPassthroughSplitIndex(args []string) int {
+	commandIndex := -1
+	for i, arg := range args {
+		if arg == "--json" || arg == "--explain" {
+			continue
+		}
+		commandIndex = i
+		break
+	}
+
+	if commandIndex == -1 || args[commandIndex] != "wrap" {
+		return -1
+	}
+
+	for i := commandIndex + 1; i < len(args); i++ {
+		if args[i] == "--" {
+			return i
+		}
+	}
+
+	return -1
 }
 
 func commandIntent(command string) (string, bool) {
