@@ -94,6 +94,11 @@ jobs:
           version: '~> v2'
           install-only: true
 
+      - name: Validate changelog presence
+        run: |
+          test -s CHANGELOG.md
+          grep -q '^## ' CHANGELOG.md
+
       - name: Build and publish release assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -169,11 +174,6 @@ jobs:
             --repo-name "${{ github.event.repository.name }}" \
             --output ./dist/wrkr.rb
 
-      - name: Validate changelog presence
-        run: |
-          test -s CHANGELOG.md
-          grep -q '^## ' CHANGELOG.md
-
       - name: Publish Homebrew formula
         if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_homebrew_tap == 'true') }}
         env:
@@ -181,8 +181,8 @@ jobs:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
           if [[ -z "${HOMEBREW_TAP_TOKEN:-}" ]]; then
-            echo "HOMEBREW_TAP_TOKEN is not set; skipping Homebrew tap publish."
-            exit 0
+            echo "HOMEBREW_TAP_TOKEN is required to publish Homebrew tap updates."
+            exit 1
           fi
           ./scripts/publish_homebrew_tap.sh \
             --formula ./dist/wrkr.rb \
