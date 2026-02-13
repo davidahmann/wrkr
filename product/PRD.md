@@ -174,6 +174,7 @@ v1 priority:
   - crash-safe state store
   - pause/resume/cancel
   - deterministic status and stop reasons
+  - lease + heartbeat semantics for safe job claims and crash recovery
 - Structured supervision:
   - typed checkpoints with bounded summaries
   - explicit "decision-needed" interrupts with approvals
@@ -184,13 +185,16 @@ v1 priority:
   - deterministic jobpack export
   - offline verify
   - stable ticket footer
+  - deterministic output paths under `./wrkr-out/` (jobpacks, integration artifacts, reports)
 - Acceptance harness:
   - deterministic checks first (schemas, artifacts present, tests/lint executed, diff/path rules)
   - CI-friendly outputs (JSON required, JUnit optional)
 - Distribution-first:
   - CLI is the product surface
-  - GitHub Actions kit for verify/accept/report
+  - GitHub Actions kit for verify/accept/report and GitHub-native summaries
   - "wrap anything" adoption path
+  - blessed integration lane kits (worker boundary wrapper + CI template)
+  - conformance + parity suites for "Wrkr-compatible" integrations
 
 ### Explicit non-goals (v1.0)
 
@@ -226,6 +230,10 @@ JobSpec requirements:
 - `environment_fingerprint` capture rules
 
 Principle: JobSpec is immutable once submitted; any change is a new job.
+
+Resume safety:
+- On resume, Wrkr evaluates environment compatibility using the captured `environment_fingerprint`.
+- If the fingerprint is incompatible, Wrkr must emit a `blocked` checkpoint with `reason_codes=[E_ENV_FINGERPRINT_MISMATCH]` and require explicit operator action (override or new job submission).
 
 ### 6.2 Checkpoint (supervision contract)
 
@@ -283,6 +291,11 @@ Purpose: a verifiable, portable bundle for review, replay of evidence, and accep
 
 Jobpack is a deterministic zip export.
 
+Wrkr standardizes deterministic output paths (v1.0 default) so docs, CI, and bug reports can rely on stable locations:
+- `./wrkr-out/jobpacks/jobpack_<job_id>.zip` (default export target)
+- `./wrkr-out/integrations/<lane>/...` (integration kit outputs)
+- `./wrkr-out/reports/...` (acceptance and summary artifacts)
+
 Required contents (v1.0):
 - `manifest.json` (schema versions, tool versions, hashes)
 - `job.json` (JobSpec + derived metadata)
@@ -298,6 +311,10 @@ Ticket footer (stable):
 
 Integrity verification:
 - `wrkr verify <job_id|path>` validates hashes and schemas.
+
+Event ledger semantics (v1.0):
+- `events.jsonl` is an append-only sequence of step-attempt records.
+- Each record must support a stable `executed` (or equivalent) field so wrapper/sidecar/adapter integrations can be fail-closed consistently when a step is not allowed to run.
 
 ### 6.6 Wrap mode (adoption surface)
 
@@ -352,6 +369,20 @@ Flow:
 Success criteria:
 - CI fails fast on schema/artifact/test failures
 - stable exit codes; JSON outputs suitable for workflows
+
+### Journey D: Worker boundary integration (Gas Town-like workloads)
+
+Entry point:
+- A worker/orchestrator executes many actions and needs durable job dispatch, resumability, and portable jobpacks for review.
+
+Two integration options (v1):
+- CLI wrapper/sidecar: worker emits JobSpec and calls `wrkr submit/status/checkpoint/approve/export` via subprocess.
+- Optional local service: worker calls a loopback `wrkr serve` endpoint for submit/status/approve/export without embedding Wrkr logic.
+
+Success criteria:
+- Integrations write deterministic artifacts under `./wrkr-out/integrations/<lane>/...`.
+- Non-executed steps are explicit (`executed=false` semantics), enabling fail-closed behavior.
+- Jobpacks remain verifiable offline and reviewable in GitHub/CI.
 
 ---
 
@@ -414,6 +445,27 @@ FR-14: UX contracts
 - stable exit codes
 - `--explain` prints short command intent
 
+FR-15: Deterministic integration artifact paths
+- Standardize `./wrkr-out/` output layout (jobpacks, integrations, reports) and keep it stable across releases.
+
+FR-16: Adapter parity and adoption smoke suites
+- Ship deterministic scripts and CI lanes that assert parity across `wrap`, sidecar, and the reference adapter.
+- Parity must include: budgets and stop reasons, checkpoint types, jobpack export/verify, acceptance outputs, and exit codes.
+
+FR-17: Checkpoint-to-work-item bridge
+- Provide a deterministic bridge that converts `blocked` or `decision-needed` checkpoints into work item payloads (GitHub Issue/Jira/Beads-like).
+- Always support `--dry-run` and include next commands and artifact pointers.
+
+FR-18: Optional local service mode
+- `wrkr serve` provides a minimal local HTTP surface for submit/status/checkpoint/approve/export.
+- Service defaults to loopback bind; non-loopback requires explicit auth and request-size limits.
+
+FR-19: GitHub-native job summaries
+- Generate deterministic PR/check summaries from jobpacks (final checkpoint summary, acceptance result, artifact manifest deltas).
+
+FR-20: Integration RFC templates and conformance kit
+- Publish a "Wrkr-compatible" conformance doc + script that validates end-to-end expectations for blessed lanes and prevents contract drift.
+
 ---
 
 ## 9. Non-functional requirements (NFR)
@@ -435,7 +487,7 @@ NFR-4: Performance
 
 NFR-5: Security posture
 - signed releases, checksums, SBOM
-- no network listener by default
+- no network listener by default; any service mode is explicit and must be loopback-default with strict non-loopback hardening (auth + request limits)
 
 NFR-6: Portability
 - single binary
@@ -479,6 +531,8 @@ NFR-7: Privacy
 - `E_VERIFY_HASH_MISMATCH`
 - `E_STORE_CORRUPT`
 - `E_INVALID_INPUT`
+- `E_ENV_FINGERPRINT_MISMATCH`
+- `E_LEASE_CONFLICT`
 
 ---
 
@@ -492,6 +546,9 @@ Default local store:
 - filesystem under `~/.wrkr/`
 - append-only event log + snapshots
 - deterministic export from store to jobpack zip
+
+Default working artifacts:
+- `./wrkr-out/` for demo outputs, integration artifacts, and jobpack exports
 
 ### 11.2 Go module layout (target)
 
@@ -514,6 +571,7 @@ Authoritative core:
 
 Adoption surfaces:
 - wrap mode, SDKs, sidecars, GH Actions are transport layers that call CLI and parse `--json`
+- optional `wrkr serve` is a local transport surface for systems that prefer HTTP over subprocess integration
 
 ---
 
@@ -529,13 +587,30 @@ Provide a default workflow that:
 - verifies jobpacks
 - runs acceptance
 - uploads artifacts
-- prints a high-signal job summary
+- prints a high-signal job summary and GitHub-native check/PR outputs
 
 ### 12.3 Skills (thin wrappers)
 
 Ship optional “skills” for popular agent shells (Codex/Claude/Cursor) that:
 - call `wrkr` commands with `--json`
 - never implement product logic outside the CLI
+
+### 12.4 Integration kits and conformance
+
+Publish a single blessed lane plus parity/conformance assets:
+- Worker boundary wrapper/sidecar templates with deterministic artifact paths (`./wrkr-out/integrations/<lane>/...`).
+- RFC templates for proposing new integrations without fragmenting behavior.
+- A conformance script that proves compatibility end-to-end (demo -> verify -> accept -> export) and is CI-enforced.
+
+### 12.5 Optional local service
+
+Provide `wrkr serve` for environments that cannot shell out cleanly or want a stable loopback integration surface.
+
+Constraints:
+- loopback bind by default
+- explicit auth required for non-loopback
+- max request bytes and retention/rotation controls
+- deterministic response payloads and stable status mapping
 
 ---
 
@@ -606,6 +681,9 @@ Risk: resume is brittle for real agents
 Risk: acceptance harness becomes subjective
 - Mitigation: deterministic checks first; rubric hooks are opt-in and later.
 
+Risk: service-mode misuse or exposure
+- Mitigation: loopback-default, auth for non-loopback, request-size limits, retention controls, and a strict documented contract for response semantics.
+
 ---
 
 ## 16. Open questions
@@ -615,6 +693,8 @@ Risk: acceptance harness becomes subjective
 - Best GitHub UX: PR comment summaries vs check runs vs both.
 - Canonical definition of “tool call count” across vendors/frameworks.
 - Whether to support workspace snapshot/patch capture in v1.0 or in v1.x ladder.
+- Should `wrkr serve` map non-executable states to non-2xx status codes by default, or preserve a compat 200-only mode for easier client integration?
+- What are the default lease TTL and heartbeat intervals that avoid double execution while keeping UX smooth on developer machines?
 
 ---
 
