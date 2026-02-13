@@ -18,7 +18,7 @@ rm -rf "${db_dir}"
 codeql database create "${db_dir}" \
   --language=go \
   --source-root "${repo_root}" \
-  --command "cd ${repo_root} && go build ./cmd/wrkr"
+  --command "go build ./..."
 
 codeql database analyze "${db_dir}" \
   --format=sarifv2.1.0 \

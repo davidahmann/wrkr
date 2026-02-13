@@ -8,3 +8,4 @@ def test_import() -> None:
     assert callable(wrap)
     assert callable(accept_run)
     assert CommandResult({"job_id": "job_1"}).job_id == "job_1"
+    assert CommandResult({"job_id": 123}).job_id is None

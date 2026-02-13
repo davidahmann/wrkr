@@ -46,6 +46,7 @@ This is the authoritative documentation map for Wrkr.
 - Project defaults: `docs/project_defaults.md`
 - Runtime SLO: `docs/slo/runtime_slo.md`
 - Retention profiles: `docs/slo/retention_profiles.md`
+- Coverage thresholds: `perf/coverage_thresholds.json`
 - Production readiness doctor: `docs/hardening/production_readiness.md`
 - CodeQL triage: `docs/security/codeql_triage.md`
 - OSS license policy: `docs/security/license_policy.md`

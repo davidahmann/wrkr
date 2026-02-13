@@ -20,6 +20,7 @@ Run in CI:
 - `make test-contracts`
 - `make test-acceptance`
 - `make test-conformance`
+- `make coverage`
 - docs-site lint/build
 
 Purpose: enforce contracts and integration compatibility.
@@ -35,6 +36,13 @@ Run via nightly workflows:
 
 Purpose: detect drift/regressions in adoption readiness, runtime budgets, and hardening guardrails.
 
+## Coverage Policy
+
+- Coverage thresholds are enforced by `make coverage`.
+- Config source: `perf/coverage_thresholds.json`.
+- Output report: `wrkr-out/reports/coverage_report.json`.
+- Threshold changes must be explicit in PR review (ratchet up only unless a documented exception is approved).
+
 ## Release-Blocking Gates
 
 Before release, all must be green:
@@ -43,3 +51,4 @@ Before release, all must be green:
 - `make test-adoption`
 - `make test-uat-local`
 - `make test-hardening-acceptance`
+- `make coverage`

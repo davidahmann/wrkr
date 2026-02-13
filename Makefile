@@ -3,9 +3,9 @@ SHELL := /bin/bash
 .PHONY: hooks fmt lint lint-fast test test-fast build \
 	sast-fast codeql-local license-check \
 	test-e2e test-acceptance test-contracts test-ent-consumer-contract test-conformance \
-	test-ticket-footer-conformance test-github-summary-golden test-wrkr-compatible-conformance test-serve-hardening \
+	test-ticket-footer-conformance test-github-summary-golden test-wrkr-compatible-conformance test-serve-hardening test-release-contracts \
 	install-smoke release-smoke \
-	test-runtime-slo test-hardening-acceptance test-v1-acceptance \
+	test-runtime-slo test-hardening-acceptance test-v1-acceptance coverage \
 	test-adoption test-uat-local docs-site-install docs-site-build docs-site-lint
 
 hooks:
@@ -66,11 +66,15 @@ test-wrkr-compatible-conformance:
 test-serve-hardening:
 	./scripts/test_serve_hardening.sh
 
+test-release-contracts:
+	./scripts/test_release_contracts.sh
+
 test-conformance:
 	./scripts/test_ticket_footer_conformance.sh
 	./scripts/test_github_summary_golden.sh
 	./scripts/test_wrkr_compatible_conformance.sh
 	./scripts/test_serve_hardening.sh
+	./scripts/test_release_contracts.sh
 
 install-smoke:
 	go build -o ./bin/wrkr ./cmd/wrkr
@@ -95,6 +99,9 @@ test-v1-acceptance:
 	$(MAKE) test-acceptance
 	$(MAKE) test-conformance
 	$(MAKE) test-runtime-slo
+
+coverage:
+	python3 ./scripts/check_coverage_thresholds.py --config ./perf/coverage_thresholds.json
 
 test-adoption:
 	./scripts/test_adoption_smoke.sh

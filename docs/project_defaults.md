@@ -10,6 +10,7 @@
 
 - Default artifact mode: reference-only
 - Deterministic JSON outputs for major machine workflows
+- `--explain` provides a bounded command-intent summary without executing work
 
 ## Reliability
 
