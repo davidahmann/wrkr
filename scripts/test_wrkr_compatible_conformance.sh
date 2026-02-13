@@ -74,7 +74,7 @@ if [[ "$exit_code" -ne 5 ]]; then
   echo "[wrkr] expected exit code 5 for acceptance failure, got $exit_code"
   exit 1
 fi
-if ! rg -q 'E_ACCEPT_MISSING_ARTIFACT' "$tmp_root/accept-fail.json"; then
+if ! grep -q 'E_ACCEPT_MISSING_ARTIFACT' "$tmp_root/accept-fail.json"; then
   echo "[wrkr] expected E_ACCEPT_MISSING_ARTIFACT in acceptance failure output"
   cat "$tmp_root/accept-fail.json"
   exit 1
