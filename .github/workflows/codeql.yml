@@ -51,3 +51,13 @@ jobs:
         uses: github/codeql-action/analyze@60d8f0d1f1f8c8d07ef53bd027032705d414ec28
         with:
           category: "/language:go"
+          output: ./codeql-results
+          upload: false
+
+      - name: Upload SARIF artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: codeql-sarif
+          path: codeql-results/*.sarif
+          if-no-files-found: error
