@@ -62,6 +62,41 @@ func TestDoctorProductionReadinessPassesWithStrictConfig(t *testing.T) {
 	}
 }
 
+func TestDoctorProductionReadinessServeFlagsRequireHardening(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("WRKR_PROFILE", "strict")
+	t.Setenv("WRKR_SIGNING_MODE", "ed25519")
+	t.Setenv("WRKR_SIGNING_KEY_SOURCE", "env")
+	t.Setenv("WRKR_RETENTION_DAYS", "14")
+	t.Setenv("WRKR_OUTPUT_RETENTION_DAYS", "14")
+
+	now := time.Date(2026, 2, 14, 4, 30, 0, 0, time.UTC)
+	var out bytes.Buffer
+	var errBuf bytes.Buffer
+	code := run(
+		[]string{"doctor", "--production-readiness", "--serve-listen", ":9488", "--json"},
+		&out,
+		&errBuf,
+		func() time.Time { return now },
+	)
+	if code == 0 {
+		t.Fatalf("expected readiness failure for wildcard non-hardened serve listen, stdout=%s stderr=%s", out.String(), errBuf.String())
+	}
+
+	out.Reset()
+	errBuf.Reset()
+	code = run(
+		[]string{"doctor", "--production-readiness", "--serve-listen", ":9488", "--serve-allow-non-loopback", "--serve-auth-token", "token", "--serve-max-body-bytes", "1024", "--json"},
+		&out,
+		&errBuf,
+		func() time.Time { return now },
+	)
+	if code != 0 {
+		t.Fatalf("expected readiness pass for hardened wildcard serve config, stdout=%s stderr=%s", out.String(), errBuf.String())
+	}
+}
+
 func TestStorePruneDryRunJSON(t *testing.T) {
 	storeRoot := filepath.Join(t.TempDir(), ".wrkr")
 	outRoot := filepath.Join(t.TempDir(), "wrkr-out")

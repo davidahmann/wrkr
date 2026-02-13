@@ -12,6 +12,7 @@ import (
 	"github.com/davidahmann/wrkr/core/fsx"
 	"github.com/davidahmann/wrkr/core/out"
 	"github.com/davidahmann/wrkr/core/schema/validate"
+	"github.com/davidahmann/wrkr/core/serve"
 	"github.com/davidahmann/wrkr/core/store"
 )
 
@@ -31,8 +32,16 @@ type Result struct {
 }
 
 type Options struct {
-	Now                 func() time.Time
-	ProductionReadiness bool
+	Now                      func() time.Time
+	ProductionReadiness      bool
+	ServeListenAddr          string
+	ServeAuthToken           string
+	ServeMaxBodyBytes        int64
+	ServeAllowNonLoopback    bool
+	ServeListenAddrSet       bool
+	ServeAuthTokenSet        bool
+	ServeMaxBodyBytesSet     bool
+	ServeAllowNonLoopbackSet bool
 }
 
 func Run(now func() time.Time) (Result, error) {
@@ -44,6 +53,7 @@ func RunWithOptions(opts Options) (Result, error) {
 	if now == nil {
 		now = time.Now
 	}
+	opts.Now = now
 
 	profile := "default"
 	if opts.ProductionReadiness {
@@ -85,7 +95,7 @@ func RunWithOptions(opts Options) (Result, error) {
 	}
 
 	if opts.ProductionReadiness {
-		results = append(results, productionReadinessChecks(now)...)
+		results = append(results, productionReadinessChecks(opts)...)
 	}
 
 	ok := true
@@ -142,7 +152,7 @@ func failWarning(name, details, remediation string) CheckResult {
 	}
 }
 
-func productionReadinessChecks(now func() time.Time) []CheckResult {
+func productionReadinessChecks(opts Options) []CheckResult {
 	results := make([]CheckResult, 0, 6)
 
 	profile := strings.ToLower(strings.TrimSpace(os.Getenv("WRKR_PROFILE")))
@@ -191,7 +201,7 @@ func productionReadinessChecks(now func() time.Time) []CheckResult {
 		))
 	}
 
-	if err := checkStoreLockHealth(now); err != nil {
+	if err := checkStoreLockHealth(opts.Now); err != nil {
 		results = append(results, failCritical("store_lock_health", err.Error(), "Ensure ~/.wrkr/jobs is writable and no stale append lock blocks claims."))
 	} else {
 		results = append(results, pass("store_lock_health", "lock acquire/release successful"))
@@ -224,10 +234,13 @@ func productionReadinessChecks(now func() time.Time) []CheckResult {
 			"WRKR_ALLOW_UNSAFE is enabled",
 			"Unset WRKR_ALLOW_UNSAFE for production environments.",
 		))
-	} else if err := validateServeHardeningEnv(); err != nil {
-		results = append(results, failCritical("unsafe_defaults", err.Error(), "For non-loopback serve, set WRKR_SERVE_AUTH_TOKEN and WRKR_SERVE_MAX_BODY_BYTES."))
+	} else if details, err := validateServeHardening(opts); err != nil {
+		results = append(results, failCritical("unsafe_defaults", err.Error(), "Provide actual serve inputs via doctor flags or WRKR_SERVE_* env and require non-loopback hardening."))
 	} else {
-		results = append(results, pass("unsafe_defaults", "production-safe defaults confirmed"))
+		if details == "" {
+			details = "production-safe defaults confirmed"
+		}
+		results = append(results, pass("unsafe_defaults", details))
 	}
 
 	return results
@@ -267,21 +280,87 @@ func checkStoreLockHealth(now func() time.Time) error {
 	return lock.Release()
 }
 
-func validateServeHardeningEnv() error {
+func validateServeHardening(opts Options) (string, error) {
+	cfg, source, provided, err := resolveServeConfig(opts)
+	if err != nil {
+		return "", err
+	}
+	if !provided {
+		return "no explicit serve inputs provided; default loopback assumptions", nil
+	}
+
+	if _, err := serve.ValidateConfig(cfg); err != nil {
+		return "", fmt.Errorf("serve config validation failed (%s): %w", source, err)
+	}
+
+	if isLoopbackListen(cfg.ListenAddr) {
+		return fmt.Sprintf("serve listen=%s (%s)", cfg.ListenAddr, source), nil
+	}
+	return fmt.Sprintf(
+		"serve non-loopback hardened (%s): listen=%s allow_non_loopback=%t max_body_bytes=%d",
+		source,
+		cfg.ListenAddr,
+		cfg.AllowNonLoopback,
+		cfg.MaxBodyBytes,
+	), nil
+}
+
+func resolveServeConfig(opts Options) (serve.Config, string, bool, error) {
+	hasFlagInput := opts.ServeListenAddrSet || opts.ServeAuthTokenSet || opts.ServeMaxBodyBytesSet || opts.ServeAllowNonLoopbackSet
 	listen := strings.TrimSpace(os.Getenv("WRKR_SERVE_LISTEN"))
-	if listen == "" {
-		return nil
+	auth := strings.TrimSpace(os.Getenv("WRKR_SERVE_AUTH_TOKEN"))
+	maxBody := int64(0)
+	if raw := strings.TrimSpace(os.Getenv("WRKR_SERVE_MAX_BODY_BYTES")); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || parsed <= 0 {
+			return serve.Config{}, "", false, fmt.Errorf("WRKR_SERVE_MAX_BODY_BYTES=%q must be a positive integer", raw)
+		}
+		maxBody = parsed
 	}
-	if isLoopbackListen(listen) {
-		return nil
+	allow := false
+	if raw := strings.TrimSpace(os.Getenv("WRKR_SERVE_ALLOW_NON_LOOPBACK")); raw != "" {
+		parsed, err := strconv.ParseBool(raw)
+		if err != nil {
+			return serve.Config{}, "", false, fmt.Errorf("WRKR_SERVE_ALLOW_NON_LOOPBACK=%q must be a boolean", raw)
+		}
+		allow = parsed
 	}
-	if strings.TrimSpace(os.Getenv("WRKR_SERVE_AUTH_TOKEN")) == "" {
-		return fmt.Errorf("non-loopback WRKR_SERVE_LISTEN requires WRKR_SERVE_AUTH_TOKEN")
+	source := "env"
+
+	if opts.ServeListenAddrSet {
+		listen = strings.TrimSpace(opts.ServeListenAddr)
+		source = "flags"
 	}
-	if strings.TrimSpace(os.Getenv("WRKR_SERVE_MAX_BODY_BYTES")) == "" {
-		return fmt.Errorf("non-loopback WRKR_SERVE_LISTEN requires WRKR_SERVE_MAX_BODY_BYTES")
+	if opts.ServeAuthTokenSet {
+		auth = strings.TrimSpace(opts.ServeAuthToken)
+		source = "flags"
 	}
-	return nil
+	if opts.ServeMaxBodyBytesSet {
+		maxBody = opts.ServeMaxBodyBytes
+		source = "flags"
+	}
+	if opts.ServeAllowNonLoopbackSet {
+		allow = opts.ServeAllowNonLoopback
+		source = "flags"
+	}
+
+	hasEnvInput := strings.TrimSpace(os.Getenv("WRKR_SERVE_LISTEN")) != "" ||
+		strings.TrimSpace(os.Getenv("WRKR_SERVE_AUTH_TOKEN")) != "" ||
+		strings.TrimSpace(os.Getenv("WRKR_SERVE_MAX_BODY_BYTES")) != "" ||
+		strings.TrimSpace(os.Getenv("WRKR_SERVE_ALLOW_NON_LOOPBACK")) != ""
+	if !hasFlagInput && !hasEnvInput {
+		return serve.Config{}, "default", false, nil
+	}
+	if !hasFlagInput {
+		source = "env"
+	}
+
+	return serve.Config{
+		ListenAddr:       listen,
+		AllowNonLoopback: allow,
+		AuthToken:        auth,
+		MaxBodyBytes:     maxBody,
+	}, source, true, nil
 }
 
 func isLoopbackListen(addr string) bool {
@@ -290,9 +369,12 @@ func isLoopbackListen(addr string) bool {
 		host = h
 	}
 	host = strings.Trim(host, "[]")
-	if host == "" || strings.EqualFold(host, "localhost") {
+	if strings.EqualFold(host, "localhost") {
 		return true
 	}
+	if host == "" {
+		return false
+	}
 	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
+	return ip != nil && ip.IsLoopback() && !ip.IsUnspecified()
 }

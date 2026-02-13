@@ -29,6 +29,26 @@ func TestValidateConfigNonLoopbackGuardrails(t *testing.T) {
 	}
 }
 
+func TestValidateConfigWildcardListenRequiresNonLoopbackHardening(t *testing.T) {
+	_, err := ValidateConfig(Config{ListenAddr: ":9488"})
+	if err == nil {
+		t.Fatal("expected wildcard listen guardrail error")
+	}
+
+	cfg, err := ValidateConfig(Config{
+		ListenAddr:       ":9488",
+		AllowNonLoopback: true,
+		AuthToken:        "token",
+		MaxBodyBytes:     1024,
+	})
+	if err != nil {
+		t.Fatalf("ValidateConfig wildcard hardened: %v", err)
+	}
+	if cfg.ListenAddr != ":9488" {
+		t.Fatalf("unexpected listen addr: %s", cfg.ListenAddr)
+	}
+}
+
 func TestAuthAndBodyLimit(t *testing.T) {
 	srv := New(Config{
 		Now:          func() time.Time { return time.Date(2026, 2, 14, 2, 40, 0, 0, time.UTC) },

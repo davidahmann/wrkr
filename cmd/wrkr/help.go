@@ -24,7 +24,7 @@ func runHelp(stdout io.Writer) int {
   bridge work-item
   serve
   job inspect|diff
-  doctor [--production-readiness]
+  doctor [--production-readiness] [--serve-*]
   store prune`)
 	return 0
 }
