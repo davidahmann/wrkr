@@ -38,6 +38,7 @@ var jobIDPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 var ErrCASConflict = errors.New("event append conflict")
 
 const appendLockStaleAfter = 2 * time.Minute
+const appendLockRetryAttempts = 128
 
 func DefaultRoot() (string, error) {
 	home, err := os.UserHomeDir()
@@ -118,11 +119,25 @@ func (s *LocalStore) appendEvent(jobID, eventType string, payload any, now time.
 		return Event{}, err
 	}
 
-	lock, err := fsx.AcquireLockWithOptions(
-		s.appendLockPath(jobID),
-		fmt.Sprintf("pid=%d;ts=%d", os.Getpid(), now.UnixNano()),
-		fsx.LockOptions{StaleAfter: appendLockStaleAfter},
+	var (
+		lock *fsx.FileLock
+		err  error
 	)
+	for attempt := 0; attempt < appendLockRetryAttempts; attempt++ {
+		lock, err = fsx.AcquireLockWithOptions(
+			s.appendLockPath(jobID),
+			fmt.Sprintf("pid=%d;ts=%d", os.Getpid(), now.UnixNano()),
+			fsx.LockOptions{StaleAfter: appendLockStaleAfter},
+		)
+		if err == nil {
+			break
+		}
+		if errors.Is(err, fsx.ErrLockBusy) {
+			time.Sleep(1 * time.Millisecond)
+			continue
+		}
+		return Event{}, err
+	}
 	if err != nil {
 		return Event{}, err
 	}

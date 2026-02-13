@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davidahmann/wrkr/core/adapters/reference"
 	wrkrerrors "github.com/davidahmann/wrkr/core/errors"
 	"github.com/davidahmann/wrkr/core/projectconfig"
 	"github.com/davidahmann/wrkr/core/queue"
@@ -65,7 +64,7 @@ func Submit(specPath string, opts SubmitOptions) (SubmitResult, error) {
 	if err != nil {
 		return SubmitResult{}, err
 	}
-	if _, err := r.InitJob(jobID); err != nil {
+	if _, err := r.InitJobWithEnvRules(jobID, spec.EnvironmentFingerprint.Rules); err != nil {
 		return SubmitResult{}, err
 	}
 	if _, err := r.ChangeStatus(jobID, queue.StatusRunning); err != nil {
@@ -81,58 +80,35 @@ func Submit(specPath string, opts SubmitOptions) (SubmitResult, error) {
 	if adapterName == "" {
 		adapterName = "reference"
 	}
-	status, runErr := runAdapter(adapterName, jobID, spec.Inputs, now)
+	runtimeCfg := RuntimeConfig{
+		ProducerVersion: spec.ProducerVersion,
+		Adapter:         adapterName,
+		Inputs:          spec.Inputs,
+		Budgets:         budgetFromSpec(spec.Budgets),
+		NextStepIndex:   0,
+	}
+	if err := SaveRuntimeConfig(s, jobID, runtimeCfg, now()); err != nil {
+		return SubmitResult{}, err
+	}
+
+	adapterResult, runErr := executeWithLease(r, jobID, now, func() (adapterRunResult, error) {
+		return runAdapter(adapterName, jobID, &runtimeCfg, r, s, now)
+	})
+	if saveErr := SaveRuntimeConfig(s, jobID, runtimeCfg, now()); saveErr != nil {
+		return SubmitResult{}, saveErr
+	}
 	if runErr != nil {
 		return SubmitResult{}, runErr
 	}
 
 	return SubmitResult{
 		JobID:     jobID,
-		Status:    status,
+		Status:    adapterResult.Status,
 		Adapter:   adapterName,
 		SpecName:  spec.Name,
 		Objective: spec.Objective,
 		SpecPath:  specPath,
 	}, nil
-}
-
-func runAdapter(adapterName, jobID string, inputs map[string]any, now func() time.Time) (queue.Status, error) {
-	switch adapterName {
-	case "reference":
-		steps, err := reference.StepsFromInputs(inputs)
-		if err != nil {
-			return "", err
-		}
-		result, err := reference.Run(jobID, steps, reference.RunOptions{Now: now})
-		if err != nil {
-			return "", err
-		}
-		return result.Status, nil
-	case "noop":
-		s, err := store.New("")
-		if err != nil {
-			return "", err
-		}
-		r, err := runner.New(s, runner.Options{Now: now})
-		if err != nil {
-			return "", err
-		}
-		_, _ = r.EmitCheckpoint(jobID, runner.CheckpointInput{
-			Type:    "completed",
-			Summary: "noop adapter completed",
-			Status:  queue.StatusCompleted,
-		})
-		if _, err := r.ChangeStatus(jobID, queue.StatusCompleted); err != nil {
-			return "", err
-		}
-		return queue.StatusCompleted, nil
-	default:
-		return "", wrkrerrors.New(
-			wrkrerrors.EInvalidInputSchema,
-			fmt.Sprintf("unsupported adapter %q", adapterName),
-			map[string]any{"adapter": adapterName},
-		)
-	}
 }
 
 func inferJobID(name string, now time.Time) string {

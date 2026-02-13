@@ -27,6 +27,7 @@ wrkr checkpoint list job_blessed_lane --json
 wrkr bridge work-item job_blessed_lane --checkpoint <decision_checkpoint> --template github --out-dir ./wrkr-out
 wrkr approve job_blessed_lane --checkpoint <decision_checkpoint> --reason "approved"
 wrkr resume job_blessed_lane --json
+wrkr status job_blessed_lane --json
 wrkr export job_blessed_lane --out-dir ./wrkr-out --json
 wrkr verify job_blessed_lane --out-dir ./wrkr-out --json
 wrkr accept run job_blessed_lane --config examples/integrations/blessed_accept.yaml --ci --out-dir ./wrkr-out --json
@@ -48,3 +49,5 @@ Run these before rollout:
 - `make test-adoption`
 - `make test-conformance`
 - `make test-uat-local`
+
+Expected lifecycle: `submit` blocks at `decision-needed`; after `approve` + `resume`, the structured reference workflow continues from durable cursor and reaches `completed`.

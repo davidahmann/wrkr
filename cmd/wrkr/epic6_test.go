@@ -212,7 +212,7 @@ environment_fingerprint:
 	if code != 0 {
 		t.Fatalf("resume failed: %d %s", code, errBuf.String())
 	}
-	if !strings.Contains(out.String(), "\"status\": \"running\"") {
+	if !strings.Contains(out.String(), "\"status\": \"completed\"") {
 		t.Fatalf("unexpected resume output: %s", out.String())
 	}
 

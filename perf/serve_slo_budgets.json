@@ -1,0 +1,13 @@
+{
+  "schema_version": "v1",
+  "load": {
+    "concurrency": 8,
+    "requests": 120,
+    "timeout_seconds": 2.0
+  },
+  "budgets": {
+    "status_p95_ms": 2000,
+    "checkpoint_list_p95_ms": 2500,
+    "error_rate_max": 0.01
+  }
+}

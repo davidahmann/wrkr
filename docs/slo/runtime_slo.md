@@ -15,14 +15,20 @@
 
 - Runtime command budgets: `perf/runtime_slo_budgets.json`
 - Resource budgets: `perf/resource_budgets.json`
+- Scale profile budgets: `perf/scale_profile_budgets.json`
+- Serve latency/error budgets: `perf/serve_slo_budgets.json`
 
 ## Local Validation
 
 - `make test-runtime-slo`
+- `make test-scale-profile`
+- `make test-serve-slo`
 
 This runs:
 
 - `scripts/check_command_budgets.py`
 - `scripts/check_resource_budgets.py`
+- `scripts/check_scale_profiles.py`
+- `scripts/check_serve_perf.py`
 
 Both scripts emit deterministic reports under `./wrkr-out/reports/`.

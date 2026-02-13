@@ -24,6 +24,7 @@ const (
 	eventCountersUpdated     = "counters_updated"
 	eventIdempotencyRecorded = "idempotency_recorded"
 	eventLeaseSet            = "lease_set"
+	eventLeaseReleased       = "lease_released"
 	eventCheckpointEmitted   = "checkpoint_emitted"
 	eventApprovalRecorded    = "approval_recorded"
 	eventAdapterStep         = "adapter_step"
@@ -105,6 +106,10 @@ func defaultState(jobID string) State {
 }
 
 func (r *Runner) InitJob(jobID string) (*State, error) {
+	return r.InitJobWithEnvRules(jobID, nil)
+}
+
+func (r *Runner) InitJobWithEnvRules(jobID string, envRules []string) (*State, error) {
 	state := defaultState(jobID)
 	startedAt := r.now().UTC()
 	event, err := r.store.AppendEvent(
@@ -119,7 +124,7 @@ func (r *Runner) InitJob(jobID string) (*State, error) {
 	state.LastAppliedSeq = event.Seq
 	state.StartedAt = &startedAt
 
-	fp, err := envfp.Capture(nil, startedAt)
+	fp, err := envfp.Capture(envRules, startedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -332,6 +337,62 @@ func (r *Runner) HeartbeatLease(jobID, workerID, leaseID string) (*State, error)
 	return nil, wrkrerrors.New(
 		wrkrerrors.EStoreCorrupt,
 		"lease heartbeat contention exceeded retry budget",
+		map[string]any{"job_id": jobID, "worker_id": workerID, "lease_id": leaseID},
+	)
+}
+
+func (r *Runner) ReleaseLease(jobID, workerID, leaseID string) (*State, error) {
+	for attempt := 0; attempt < maxCASAttempts; attempt++ {
+		state, err := r.Recover(jobID)
+		if err != nil {
+			return nil, err
+		}
+		if state.Lease == nil {
+			return state, nil
+		}
+		if state.Lease.WorkerID != workerID || state.Lease.LeaseID != leaseID {
+			return nil, wrkrerrors.New(
+				wrkrerrors.ELeaseConflict,
+				"release lease mismatch",
+				map[string]any{
+					"job_id":           jobID,
+					"worker_id":        workerID,
+					"lease_id":         leaseID,
+					"existing_worker":  state.Lease.WorkerID,
+					"existing_lease_id": state.Lease.LeaseID,
+				},
+			)
+		}
+
+		event, err := r.store.AppendEventCAS(
+			jobID,
+			eventLeaseReleased,
+			map[string]any{
+				"worker_id": workerID,
+				"lease_id":  leaseID,
+			},
+			state.LastAppliedSeq,
+			r.now(),
+		)
+		if err != nil {
+			if errors.Is(err, store.ErrCASConflict) || errors.Is(err, fsx.ErrLockBusy) {
+				time.Sleep(1 * time.Millisecond)
+				continue
+			}
+			return nil, err
+		}
+
+		state.Lease = nil
+		state.LastAppliedSeq = event.Seq
+		if err := r.store.SaveSnapshot(jobID, state.LastAppliedSeq, state, r.now()); err != nil {
+			return nil, err
+		}
+		return state, nil
+	}
+
+	return nil, wrkrerrors.New(
+		wrkrerrors.EStoreCorrupt,
+		"lease release contention exceeded retry budget",
 		map[string]any{"job_id": jobID, "worker_id": workerID, "lease_id": leaseID},
 	)
 }
@@ -838,6 +899,9 @@ func applyEvent(state *State, event store.Event) error {
 			return fmt.Errorf("decode lease payload: %w", err)
 		}
 		state.Lease = &rec
+		return nil
+	case eventLeaseReleased:
+		state.Lease = nil
 		return nil
 	case eventCheckpointEmitted:
 		var payload struct {

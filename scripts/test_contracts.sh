@@ -13,6 +13,7 @@ required_docs=(
   "docs/contracts/environment_fingerprint.md"
   "docs/contracts/jobpack_verify.md"
   "docs/contracts/acceptance_contract.md"
+  "docs/contracts/failure_taxonomy.md"
   "docs/contracts/ticket_footer_conformance.md"
   "docs/contracts/github_summary_conformance.md"
   "docs/contracts/work_item_bridge_contract.md"

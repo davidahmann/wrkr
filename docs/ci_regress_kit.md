@@ -11,6 +11,9 @@ Use this kit to detect contract and behavior regressions quickly.
 - `make test-acceptance`
 - `make test-adoption`
 - `make test-uat-local`
+- `make test-runtime-slo`
+- `make test-scale-profile`
+- `make test-serve-slo`
 - `make coverage`
 - `make sast-fast`
 - `make license-check`

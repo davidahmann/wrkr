@@ -12,7 +12,7 @@ import (
 )
 
 func openRunner(now func() time.Time) (*runner.Runner, *store.LocalStore, error) {
-	s, err := store.New("")
+	s, err := openStore()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -21,6 +21,10 @@ func openRunner(now func() time.Time) (*runner.Runner, *store.LocalStore, error)
 		return nil, nil, err
 	}
 	return r, s, nil
+}
+
+func openStore() (*store.LocalStore, error) {
+	return store.New("")
 }
 
 func ensureJobExists(s *store.LocalStore, jobID string) error {

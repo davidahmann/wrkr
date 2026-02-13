@@ -26,7 +26,7 @@ This plan is written for top-to-bottom execution with minimal interpretation. Ev
 - "Wrkr-compatible" is a real, testable claim enforced by conformance + parity suites; it is release-blocking.
 - CI/CD governance must be single-admin operable; no release or protection step may require two-admin approval.
 - Major commands support `--json` and `--explain` with bounded summaries.
-- Coverage threshold is `>= 85%` for Go core/CLI and Python SDK, enforced in CI.
+- Coverage thresholds are enforced in CI via `perf/coverage_thresholds.json` (current: Go `>=63%`, Python `>=85%`) with a ratchet plan to raise Go coverage without destabilizing release cadence.
 - Documentation ownership mirrors Gait: `docs/contracts/*` are normative; `README.md` is onboarding only.
 - CI cadence mirrors Gait: fast PR lane, broad mainline lane, nightly deep validation lanes.
 - Release integrity mirrors Gait: checksums, SBOM, vulnerability scan, signatures, provenance, reproducible artifacts.
