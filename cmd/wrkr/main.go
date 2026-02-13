@@ -50,16 +50,28 @@ func run(args []string, stdout, stderr io.Writer, now func() time.Time) int {
 	}
 
 	switch filtered[0] {
+	case "demo":
+		return runDemo(filtered[1:], jsonMode, stdout, stderr, now)
+	case "init":
+		return runInit(filtered[1:], jsonMode, stdout, stderr, now)
+	case "submit":
+		return runSubmit(filtered[1:], jsonMode, stdout, stderr, now)
 	case "status":
 		return runStatus(filtered[1:], jsonMode, stdout, stderr, now)
 	case "checkpoint":
 		return runCheckpoint(filtered[1:], jsonMode, stdout, stderr, now)
+	case "pause":
+		return runPause(filtered[1:], jsonMode, stdout, stderr, now)
 	case "approve":
 		return runApprove(filtered[1:], jsonMode, stdout, stderr, now)
 	case "resume":
 		return runResume(filtered[1:], jsonMode, stdout, stderr, now)
+	case "cancel":
+		return runCancel(filtered[1:], jsonMode, stdout, stderr, now)
 	case "budget":
 		return runBudget(filtered[1:], jsonMode, stdout, stderr, now)
+	case "wrap":
+		return runWrap(filtered[1:], jsonMode, stdout, stderr, now)
 	case "export":
 		return runExport(filtered[1:], jsonMode, stdout, stderr, now)
 	case "verify":
@@ -72,6 +84,14 @@ func run(args []string, stdout, stderr io.Writer, now func() time.Time) int {
 		return runAccept(filtered[1:], jsonMode, stdout, stderr, now)
 	case "report":
 		return runReport(filtered[1:], jsonMode, stdout, stderr, now)
+	case "bridge":
+		return runBridge(filtered[1:], jsonMode, stdout, stderr, now)
+	case "serve":
+		return runServe(filtered[1:], jsonMode, stdout, stderr, now)
+	case "doctor":
+		return runDoctor(filtered[1:], jsonMode, stdout, stderr, now)
+	case "help":
+		return runHelp(stdout)
 	}
 
 	return printError(

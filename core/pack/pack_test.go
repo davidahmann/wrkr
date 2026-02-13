@@ -271,6 +271,53 @@ func TestInspectAndDiffDeterministic(t *testing.T) {
 	}
 }
 
+func TestExportPreservesExecutedFlagFromEventPayload(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	now := time.Date(2026, 2, 13, 18, 0, 0, 0, time.UTC)
+	setupJob(t, "job_executed_flag", now)
+
+	s, err := store.New("")
+	if err != nil {
+		t.Fatalf("store.New: %v", err)
+	}
+	if _, err := s.AppendEvent("job_executed_flag", "adapter_step", map[string]any{
+		"step_id":  "review",
+		"executed": false,
+	}, now); err != nil {
+		t.Fatalf("append event: %v", err)
+	}
+
+	exported, err := ExportJobpack("job_executed_flag", ExportOptions{
+		OutDir:          t.TempDir(),
+		ProducerVersion: "test",
+		Now:             func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	archive, err := LoadArchive(exported.Path)
+	if err != nil {
+		t.Fatalf("load archive: %v", err)
+	}
+	events, err := DecodeEvents(archive.Files)
+	if err != nil {
+		t.Fatalf("decode events: %v", err)
+	}
+	found := false
+	for _, event := range events {
+		if event.Type == "adapter_step" && event.EventID != "" {
+			found = true
+			if event.Executed {
+				t.Fatalf("expected executed=false for adapter_step event, got true: %+v", event)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("expected adapter_step event in exported jobpack")
+	}
+}
+
 func rewriteArchiveManifest(archive *Archive) error {
 	manifest := archive.Manifest
 	files := make(map[string][]byte, len(archive.Files))

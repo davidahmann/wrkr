@@ -4,11 +4,12 @@ Wrkr is a durable dispatch and supervision substrate for long-running agent jobs
 
 ## Current status
 
-This repository currently includes the Epic 0 foundations:
-- repository scaffold and governance docs
-- Go CLI and Python SDK skeletons
-- local developer workflows (`make`, hooks, pre-commit)
-- baseline CI fast lane
+This repository includes implemented foundations through Epic 6:
+- durable local runner, checkpoints, approvals, budgets, export/verify
+- acceptance harness (`wrkr accept`) and GitHub summary report (`wrkr report github`)
+- CLI command map for demo/init/submit/pause/resume/cancel/wrap/bridge/serve/doctor
+- adapter layer (wrap + reference), sidecar example, and Python SDK wrappers
+- local developer workflows (`make`, hooks, pre-commit) and CI fast lane
 
 ## Quickstart
 
@@ -17,6 +18,7 @@ make fmt
 make lint-fast
 make test-fast
 make sast-fast
+wrkr help
 ```
 
 ## Product docs

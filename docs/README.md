@@ -6,6 +6,7 @@ Authoritative documentation index for Wrkr.
 
 - Contracts: `docs/contracts/`
 - Security posture: `docs/security/`
+- Serve API contract: `docs/contracts/serve_api.md`
 
 ## Product
 
@@ -17,3 +18,4 @@ Authoritative documentation index for Wrkr.
 - Hardening: `docs/hardening/`
 - Deployment: `docs/deployment/`
 - SLO: `docs/slo/`
+- Integration checklist: `docs/integration_checklist.md`

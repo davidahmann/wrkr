@@ -1,0 +1,8 @@
+{
+  "schema_id": "wrkr.sidecar_request",
+  "schema_version": "v1",
+  "lane": "fixture",
+  "job_id": "job_sidecar_fixture",
+  "command": ["wrkr", "status", "job_sidecar_fixture", "--json"],
+  "dry_run": true
+}

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -69,12 +70,13 @@ func BuildGitHubSummaryFromJobpack(path string, opts SummaryOptions) (v1.GitHubS
 	finalSummary := latestCheckpointSummary(checkpoints)
 	artifactPointers := extractArtifactPointers(artifactsManifest)
 	markdown := renderMarkdown(job.JobID, job.Status, acceptResult, finalSummary, delta, artifactPointers)
+	createdAt := summaryCreatedAt(archive.Manifest.CreatedAt, job.CreatedAt, now().UTC())
 
 	summary := v1.GitHubSummary{
 		Envelope: v1.Envelope{
 			SchemaID:        "wrkr.github_summary",
 			SchemaVersion:   "v1",
-			CreatedAt:       now().UTC(),
+			CreatedAt:       createdAt,
 			ProducerVersion: producerVersion,
 		},
 		JobID:  job.JobID,
@@ -203,11 +205,41 @@ func latestCheckpointSummary(checkpoints []v1.Checkpoint) string {
 			latest = cp
 			continue
 		}
-		if cp.CreatedAt.Equal(latest.CreatedAt) && cp.CheckpointID > latest.CheckpointID {
-			latest = cp
+		if cp.CreatedAt.Equal(latest.CreatedAt) {
+			cpOrdinal, cpOK := checkpointOrdinal(cp.CheckpointID)
+			latestOrdinal, latestOK := checkpointOrdinal(latest.CheckpointID)
+			switch {
+			case cpOK && latestOK && cpOrdinal > latestOrdinal:
+				latest = cp
+			case cpOK && !latestOK:
+				latest = cp
+			case !cpOK && !latestOK && cp.CheckpointID > latest.CheckpointID:
+				latest = cp
+			}
 		}
 	}
 	return strings.TrimSpace(latest.Summary)
+}
+
+func summaryCreatedAt(manifestCreatedAt, jobCreatedAt, fallback time.Time) time.Time {
+	if !manifestCreatedAt.IsZero() {
+		return manifestCreatedAt.UTC()
+	}
+	if !jobCreatedAt.IsZero() {
+		return jobCreatedAt.UTC()
+	}
+	return fallback.UTC()
+}
+
+func checkpointOrdinal(id string) (int64, bool) {
+	if !strings.HasPrefix(id, "cp_") {
+		return 0, false
+	}
+	value, err := strconv.ParseInt(strings.TrimPrefix(id, "cp_"), 10, 64)
+	if err != nil || value <= 0 {
+		return 0, false
+	}
+	return value, true
 }
 
 func extractArtifactPointers(manifest *v1.ArtifactsManifest) []string {
