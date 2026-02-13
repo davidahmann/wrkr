@@ -42,12 +42,18 @@ func TestBuildAndWriteGitHubSummary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build summary A: %v", err)
 	}
-	b, err := BuildGitHubSummaryFromJobpack(exported.Path, SummaryOptions{Now: func() time.Time { return now }, ProducerVersion: "test"})
+	b, err := BuildGitHubSummaryFromJobpack(exported.Path, SummaryOptions{
+		Now:             func() time.Time { return now.Add(2 * time.Hour) },
+		ProducerVersion: "test",
+	})
 	if err != nil {
 		t.Fatalf("build summary B: %v", err)
 	}
 	if a.Markdown != b.Markdown {
 		t.Fatal("expected deterministic markdown")
+	}
+	if !a.CreatedAt.Equal(now) || !b.CreatedAt.Equal(now) {
+		t.Fatalf("expected jobpack-stable created_at (%s), got A=%s B=%s", now.UTC(), a.CreatedAt, b.CreatedAt)
 	}
 	if !strings.Contains(a.Markdown, "Final Checkpoint") {
 		t.Fatalf("expected final checkpoint section: %s", a.Markdown)
@@ -91,6 +97,17 @@ func TestBuildAndWriteGitHubSummary(t *testing.T) {
 	}
 	if decoded["job_id"] != "job_report" {
 		t.Fatalf("expected job_report, got %v", decoded["job_id"])
+	}
+}
+
+func TestLatestCheckpointSummaryNumericTieBreak(t *testing.T) {
+	at := time.Date(2026, 2, 13, 23, 0, 0, 0, time.UTC)
+	checkpoints := []v1.Checkpoint{
+		{Envelope: v1.Envelope{CreatedAt: at}, CheckpointID: "cp_9", Summary: "older summary"},
+		{Envelope: v1.Envelope{CreatedAt: at}, CheckpointID: "cp_10", Summary: "latest summary"},
+	}
+	if got := latestCheckpointSummary(checkpoints); got != "latest summary" {
+		t.Fatalf("expected latest summary for cp_10 tie-break, got %q", got)
 	}
 }
 

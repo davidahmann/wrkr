@@ -99,11 +99,15 @@ func ExportJobpack(jobID string, opts ExportOptions) (ExportResult, error) {
 	projectedEvents := make([]v1.EventRecord, 0, len(events))
 	for _, event := range events {
 		payload := map[string]any{}
+		executed := true
 		if len(event.Payload) > 0 {
 			var decoded any
 			if err := json.Unmarshal(event.Payload, &decoded); err == nil {
 				if asMap, ok := decoded.(map[string]any); ok {
 					payload = asMap
+					if explicitExecuted, ok := asMap["executed"].(bool); ok {
+						executed = explicitExecuted
+					}
 				} else {
 					payload = map[string]any{"value": decoded}
 				}
@@ -119,7 +123,7 @@ func ExportJobpack(jobID string, opts ExportOptions) (ExportResult, error) {
 			EventID:  fmt.Sprintf("evt_%d", event.Seq),
 			JobID:    jobID,
 			Type:     event.Type,
-			Executed: true,
+			Executed: executed,
 			Payload:  payload,
 		})
 	}

@@ -26,6 +26,7 @@ const (
 	eventLeaseSet            = "lease_set"
 	eventCheckpointEmitted   = "checkpoint_emitted"
 	eventApprovalRecorded    = "approval_recorded"
+	eventAdapterStep         = "adapter_step"
 	eventEnvFingerprintSet   = "env_fingerprint_set"
 	eventEnvOverrideRecorded = "env_override_recorded"
 	maxCASAttempts           = 64
@@ -876,6 +877,8 @@ func applyEvent(state *State, event store.Event) error {
 		}
 		return nil
 	case eventApprovalRecorded:
+		return nil
+	case eventAdapterStep:
 		return nil
 	default:
 		return wrkrerrors.New(
