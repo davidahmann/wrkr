@@ -41,27 +41,27 @@ formula="$tmp_root/wrkr.rb"
   --repo-name wrkr \
   --output "$formula"
 
-if ! rg -q "wrkr_1.2.3_darwin_arm64.tar.gz" "$formula"; then
+if ! grep -q "wrkr_1.2.3_darwin_arm64.tar.gz" "$formula"; then
   echo "[wrkr][release contracts] formula missing non-prefixed archive name"
   cat "$formula"
   exit 1
 fi
-if ! rg -q "releases/download/v1.2.3" "$formula"; then
+if ! grep -q "releases/download/v1.2.3" "$formula"; then
   echo "[wrkr][release contracts] formula missing v-tag release URL"
   cat "$formula"
   exit 1
 fi
 
 workflow="$repo_root/.github/workflows/release.yml"
-if ! rg -q "acceptance-gate" "$workflow"; then
+if ! grep -q "acceptance-gate" "$workflow"; then
   echo "[wrkr][release contracts] missing acceptance-gate job in release workflow"
   exit 1
 fi
-if ! rg -q "Checkout requested tag" "$workflow"; then
+if ! grep -q "Checkout requested tag" "$workflow"; then
   echo "[wrkr][release contracts] missing tag checkout step"
   exit 1
 fi
-if ! rg -Fq 'git checkout "refs/tags/${TAG_NAME}"' "$workflow"; then
+if ! grep -Fq 'git checkout "refs/tags/${TAG_NAME}"' "$workflow"; then
   echo "[wrkr][release contracts] missing explicit refs/tags checkout command"
   exit 1
 fi
