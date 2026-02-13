@@ -15,6 +15,8 @@ func TestValidTransitions(t *testing.T) {
 		{StatusPaused, StatusBlockedError},
 		{StatusRunning, StatusCompleted},
 		{StatusBlockedDecision, StatusRunning},
+		{StatusBlockedDecision, StatusBlockedError},
+		{StatusBlockedBudget, StatusBlockedError},
 	}
 
 	for _, tc := range cases {

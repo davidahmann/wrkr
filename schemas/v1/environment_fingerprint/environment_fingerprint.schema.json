@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wrkr.dev/schemas/v1/environment_fingerprint/environment_fingerprint.schema.json",
+  "title": "Wrkr Environment Fingerprint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "created_at",
+    "producer_version",
+    "rules",
+    "values",
+    "hash",
+    "captured_at"
+  ],
+  "properties": {
+    "schema_id": { "const": "wrkr.environment_fingerprint" },
+    "schema_version": { "type": "string", "pattern": "^v1(\\.[0-9]+)?$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "producer_version": { "type": "string", "minLength": 1 },
+    "rules": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "values": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "captured_at": { "type": "string", "format": "date-time" }
+  }
+}

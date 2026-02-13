@@ -1,7 +1,6 @@
 package pack
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -64,6 +63,20 @@ func VerifyJobpack(path string) (VerifyResult, error) {
 		}
 	}
 
+	allowedFiles := map[string]struct{}{"manifest.json": {}}
+	for _, file := range archive.Manifest.Files {
+		allowedFiles[file.Path] = struct{}{}
+	}
+	for path := range archive.Files {
+		if _, ok := allowedFiles[path]; !ok {
+			return VerifyResult{}, wrkrerrors.New(
+				wrkrerrors.EVerifyHashMismatch,
+				"archive contains undeclared file",
+				map[string]any{"path": path},
+			)
+		}
+	}
+
 	if err := validateSchemaFiles(archive.Files); err != nil {
 		return VerifyResult{}, err
 	}
@@ -92,21 +105,33 @@ func validateSchemaFiles(files map[string][]byte) error {
 		}
 	}
 	if raw, ok := files["events.jsonl"]; ok {
-		for i, line := range jsonlLines(raw) {
+		lines, err := jsonlLines(raw)
+		if err != nil {
+			return wrkrerrors.New(wrkrerrors.EInvalidInputSchema, "events jsonl parse failed", map[string]any{"error": err.Error()})
+		}
+		for i, line := range lines {
 			if err := validate.ValidateBytes(validate.EventSchemaRel, line); err != nil {
 				return wrkrerrors.New(wrkrerrors.EInvalidInputSchema, "event schema invalid", map[string]any{"line": i + 1, "error": err.Error()})
 			}
 		}
 	}
 	if raw, ok := files["checkpoints.jsonl"]; ok {
-		for i, line := range jsonlLines(raw) {
+		lines, err := jsonlLines(raw)
+		if err != nil {
+			return wrkrerrors.New(wrkrerrors.EInvalidInputSchema, "checkpoints jsonl parse failed", map[string]any{"error": err.Error()})
+		}
+		for i, line := range lines {
 			if err := validate.ValidateBytes(validate.CheckpointSchemaRel, line); err != nil {
 				return wrkrerrors.New(wrkrerrors.EInvalidInputSchema, "checkpoint schema invalid", map[string]any{"line": i + 1, "error": err.Error()})
 			}
 		}
 	}
 	if raw, ok := files["approvals.jsonl"]; ok {
-		for i, line := range jsonlLines(raw) {
+		lines, err := jsonlLines(raw)
+		if err != nil {
+			return wrkrerrors.New(wrkrerrors.EInvalidInputSchema, "approvals jsonl parse failed", map[string]any{"error": err.Error()})
+		}
+		for i, line := range lines {
 			if err := validate.ValidateBytes(validate.ApprovalRecordSchemaRel, line); err != nil {
 				return wrkrerrors.New(wrkrerrors.EInvalidInputSchema, "approval schema invalid", map[string]any{"line": i + 1, "error": err.Error()})
 			}
@@ -115,11 +140,11 @@ func validateSchemaFiles(files map[string][]byte) error {
 	return nil
 }
 
-func jsonlLines(raw []byte) [][]byte {
-	scanner := bufio.NewScanner(bytes.NewReader(raw))
+func jsonlLines(raw []byte) ([][]byte, error) {
+	parts := bytes.Split(raw, []byte{'\n'})
 	out := make([][]byte, 0, 8)
-	for scanner.Scan() {
-		line := bytes.TrimSpace(scanner.Bytes())
+	for _, part := range parts {
+		line := bytes.TrimSpace(part)
 		if len(line) == 0 {
 			continue
 		}
@@ -127,7 +152,7 @@ func jsonlLines(raw []byte) [][]byte {
 		copy(copied, line)
 		out = append(out, copied)
 	}
-	return out
+	return out, nil
 }
 
 func DecodeJobRecord(files map[string][]byte) (*v1.JobRecord, error) {
@@ -147,11 +172,15 @@ func DecodeCheckpoints(files map[string][]byte) ([]v1.Checkpoint, error) {
 	if !ok {
 		return nil, nil
 	}
+	lines, err := jsonlLines(raw)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]v1.Checkpoint, 0, 8)
-	for _, line := range jsonlLines(raw) {
+	for i, line := range lines {
 		var cp v1.Checkpoint
 		if err := json.Unmarshal(line, &cp); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("decode checkpoint line %d: %w", i+1, err)
 		}
 		out = append(out, cp)
 	}
@@ -163,11 +192,15 @@ func DecodeEvents(files map[string][]byte) ([]v1.EventRecord, error) {
 	if !ok {
 		return nil, nil
 	}
+	lines, err := jsonlLines(raw)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]v1.EventRecord, 0, 16)
-	for _, line := range jsonlLines(raw) {
+	for i, line := range lines {
 		var evt v1.EventRecord
 		if err := json.Unmarshal(line, &evt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("decode event line %d: %w", i+1, err)
 		}
 		out = append(out, evt)
 	}
@@ -179,11 +212,15 @@ func DecodeApprovals(files map[string][]byte) ([]v1.ApprovalRecord, error) {
 	if !ok {
 		return nil, nil
 	}
+	lines, err := jsonlLines(raw)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]v1.ApprovalRecord, 0, 8)
-	for _, line := range jsonlLines(raw) {
+	for i, line := range lines {
 		var rec v1.ApprovalRecord
 		if err := json.Unmarshal(line, &rec); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("decode approval line %d: %w", i+1, err)
 		}
 		out = append(out, rec)
 	}
