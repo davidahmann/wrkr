@@ -72,10 +72,11 @@ checksum_for() {
   printf "%s" "$value"
 }
 
-archive_darwin_amd64="wrkr_${version}_darwin_amd64.tar.gz"
-archive_darwin_arm64="wrkr_${version}_darwin_arm64.tar.gz"
-archive_linux_amd64="wrkr_${version}_linux_amd64.tar.gz"
-archive_linux_arm64="wrkr_${version}_linux_arm64.tar.gz"
+archive_version="${version#v}"
+archive_darwin_amd64="wrkr_${archive_version}_darwin_amd64.tar.gz"
+archive_darwin_arm64="wrkr_${archive_version}_darwin_arm64.tar.gz"
+archive_linux_amd64="wrkr_${archive_version}_linux_amd64.tar.gz"
+archive_linux_arm64="wrkr_${archive_version}_linux_arm64.tar.gz"
 
 sha_darwin_amd64="$(checksum_for "$archive_darwin_amd64")"
 sha_darwin_arm64="$(checksum_for "$archive_darwin_arm64")"

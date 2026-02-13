@@ -3,6 +3,7 @@
   "schema_version": "v1",
   "lane": "fixture",
   "job_id": "job_sidecar_fixture",
+  "timestamp_utc": "2026-01-01T00:00:00+00:00",
   "command": ["wrkr", "status", "job_sidecar_fixture", "--json"],
   "dry_run": true
 }

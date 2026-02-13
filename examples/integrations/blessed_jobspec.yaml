@@ -1,0 +1,46 @@
+schema_id: wrkr.jobspec
+schema_version: v1
+producer_version: dev
+created_at: "2026-02-13T00:00:00Z"
+name: blessed_lane_job
+objective: Exercise submit/status/checkpoint/approve/resume bridge flow.
+adapter:
+  name: reference
+  config:
+    lane: blessed
+expected_artifacts:
+  - reports/plan.md
+inputs:
+  workspace: .
+  steps:
+    - id: plan
+      summary: generate initial plan artifact
+      command: "true"
+      executed: true
+      artifacts:
+        - reports/plan.md
+    - id: manager_review
+      summary: manager decision checkpoint
+      command: ""
+      executed: false
+      decision_needed: true
+      required_action: approve
+      artifacts: []
+budgets:
+  max_wall_time_seconds: 3600
+  max_retries: 2
+  max_tool_calls: 200
+  max_step_count: 20
+checkpoint_policy:
+  min_interval_seconds: 10
+  required_types:
+    - plan
+    - progress
+    - decision-needed
+    - blocked
+    - completed
+environment_fingerprint:
+  rules:
+    - go_version
+    - os
+    - arch

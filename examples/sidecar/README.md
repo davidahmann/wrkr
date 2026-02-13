@@ -15,3 +15,5 @@ Outputs are written deterministically under:
 - `./wrkr-out/integrations/<lane>/request.json`
 - `./wrkr-out/integrations/<lane>/result.json`
 - `./wrkr-out/integrations/<lane>/sidecar.log`
+
+The fixture includes a fixed `timestamp_utc` to guarantee deterministic dry-run output.

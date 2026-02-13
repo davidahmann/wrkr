@@ -97,10 +97,11 @@ test-v1-acceptance:
 	$(MAKE) test-runtime-slo
 
 test-adoption:
-	@echo "[wrkr] test-adoption placeholder (Epic >0)"
+	./scripts/test_adoption_smoke.sh
+	./scripts/test_adapter_parity.sh
 
 test-uat-local:
-	@echo "[wrkr] test-uat-local placeholder (Epic >0)"
+	./scripts/test_uat_local.sh
 
 docs-site-install:
 	cd docs-site && npm ci
