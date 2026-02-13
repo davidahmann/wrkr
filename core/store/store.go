@@ -220,7 +220,12 @@ func (s *LocalStore) appendEventLocked(jobID, eventType string, payload any, now
 	if err != nil || eventsRel == ".." || strings.HasPrefix(eventsRel, ".."+string(os.PathSeparator)) {
 		return Event{}, fmt.Errorf("events file escapes job directory")
 	}
-	f, err := os.OpenFile(eventsPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	jobRoot, err := os.OpenRoot(jobDir)
+	if err != nil {
+		return Event{}, fmt.Errorf("open job root: %w", err)
+	}
+	defer func() { _ = jobRoot.Close() }()
+	f, err := jobRoot.OpenFile("events.jsonl", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return Event{}, fmt.Errorf("open events file: %w", err)
 	}
@@ -249,7 +254,12 @@ func (s *LocalStore) LoadEvents(jobID string) ([]Event, error) {
 	if err != nil || eventsRel == ".." || strings.HasPrefix(eventsRel, ".."+string(os.PathSeparator)) {
 		return nil, fmt.Errorf("events file escapes job directory")
 	}
-	f, err := os.Open(path)
+	jobRoot, err := os.OpenRoot(jobDir)
+	if err != nil {
+		return nil, fmt.Errorf("open job root: %w", err)
+	}
+	defer func() { _ = jobRoot.Close() }()
+	f, err := jobRoot.Open("events.jsonl")
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
@@ -339,7 +349,12 @@ func (s *LocalStore) LoadSnapshot(jobID string) (*Snapshot, error) {
 	if err != nil || snapshotRel == ".." || strings.HasPrefix(snapshotRel, ".."+string(os.PathSeparator)) {
 		return nil, fmt.Errorf("snapshot file escapes job directory")
 	}
-	raw, err := os.ReadFile(snapshotPath)
+	jobRoot, err := os.OpenRoot(jobDir)
+	if err != nil {
+		return nil, fmt.Errorf("open job root: %w", err)
+	}
+	defer func() { _ = jobRoot.Close() }()
+	raw, err := jobRoot.ReadFile("snapshot.json")
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil

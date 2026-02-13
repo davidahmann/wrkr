@@ -88,7 +88,12 @@ func LoadJobSpec(path string) (*v1.JobSpec, error) {
 			map[string]any{"path": target, "error": err.Error()},
 		)
 	}
-	raw, err := os.ReadFile(resolved)
+	root, err := os.OpenRoot(filepath.Dir(resolved))
+	if err != nil {
+		return nil, fmt.Errorf("open jobspec dir: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+	raw, err := root.ReadFile(filepath.Base(resolved))
 	if err != nil {
 		return nil, fmt.Errorf("read jobspec: %w", err)
 	}

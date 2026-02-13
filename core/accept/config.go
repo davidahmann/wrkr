@@ -77,7 +77,12 @@ func LoadConfig(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	raw, err := os.ReadFile(resolved)
+	root, err := os.OpenRoot(filepath.Dir(resolved))
+	if err != nil {
+		return Config{}, err
+	}
+	defer func() { _ = root.Close() }()
+	raw, err := root.ReadFile(filepath.Base(resolved))
 	if err != nil {
 		return Config{}, err
 	}

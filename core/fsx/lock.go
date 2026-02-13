@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -37,25 +38,33 @@ func AcquireLockWithOptions(path, owner string, opts LockOptions) (*FileLock, er
 	if now == nil {
 		now = time.Now
 	}
+	lockDir := filepath.Dir(lockPath)
+	lockFile := filepath.Base(lockPath)
 
 	claim := func() (*FileLock, error) {
-		file, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		root, err := os.OpenRoot(lockDir)
+		if err != nil {
+			return nil, fmt.Errorf("open lock root: %w", err)
+		}
+		defer func() { _ = root.Close() }()
+
+		file, err := root.OpenFile(lockFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 		if err != nil {
 			return nil, err
 		}
 
 		if _, err := file.WriteString(owner + "\n"); err != nil {
 			_ = file.Close()
-			_ = os.Remove(lockPath)
+			_ = root.Remove(lockFile)
 			return nil, fmt.Errorf("write lock owner: %w", err)
 		}
 		if err := file.Sync(); err != nil {
 			_ = file.Close()
-			_ = os.Remove(lockPath)
+			_ = root.Remove(lockFile)
 			return nil, fmt.Errorf("sync lock file: %w", err)
 		}
 		if err := file.Close(); err != nil {
-			_ = os.Remove(lockPath)
+			_ = root.Remove(lockFile)
 			return nil, fmt.Errorf("close lock file: %w", err)
 		}
 
@@ -111,7 +120,12 @@ func readLockOwner(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("invalid lock path: %w", err)
 	}
-	data, err := os.ReadFile(lockPath)
+	root, err := os.OpenRoot(filepath.Dir(lockPath))
+	if err != nil {
+		return "", fmt.Errorf("open lock root: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+	data, err := root.ReadFile(filepath.Base(lockPath))
 	if err != nil {
 		return "", err
 	}
