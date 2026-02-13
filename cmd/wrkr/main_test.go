@@ -148,3 +148,46 @@ func TestSplitGlobalFlagsParsesTopLevelAndPreservesWrapPassthrough(t *testing.T)
 		t.Fatalf("expected %q, got %q", expected, strings.Join(filtered, " "))
 	}
 }
+
+func TestCommandIntentCoverage(t *testing.T) {
+	t.Parallel()
+
+	commands := []string{
+		"version",
+		"demo",
+		"init",
+		"submit",
+		"status",
+		"checkpoint",
+		"pause",
+		"approve",
+		"resume",
+		"cancel",
+		"budget",
+		"wrap",
+		"export",
+		"verify",
+		"job",
+		"receipt",
+		"accept",
+		"report",
+		"bridge",
+		"serve",
+		"doctor",
+		"store",
+		"help",
+	}
+	for _, command := range commands {
+		intent, ok := commandIntent(command)
+		if !ok {
+			t.Fatalf("expected known command %q", command)
+		}
+		if strings.TrimSpace(intent) == "" {
+			t.Fatalf("expected non-empty intent for %q", command)
+		}
+	}
+
+	if intent, ok := commandIntent("not-a-command"); ok || intent != "" {
+		t.Fatalf("expected unknown command to return empty intent and false, got %q %t", intent, ok)
+	}
+}

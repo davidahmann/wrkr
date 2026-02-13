@@ -25,7 +25,7 @@ func InitJobSpec(path string, force bool, now time.Time, producerVersion string)
 	if target == "" {
 		target = DefaultJobSpecPath
 	}
-	resolved, err := fsx.ResolveWithinWorkingDir(filepath.Clean(target))
+	resolved, err := resolveJobSpecPath(target)
 	if err != nil {
 		return "", wrkrerrors.New(
 			wrkrerrors.EInvalidInputSchema,
@@ -80,7 +80,7 @@ func LoadJobSpec(path string) (*v1.JobSpec, error) {
 	if target == "" {
 		return nil, wrkrerrors.New(wrkrerrors.EInvalidInputSchema, "jobspec path is required", nil)
 	}
-	resolved, err := fsx.ResolveWithinWorkingDir(filepath.Clean(target))
+	resolved, err := resolveJobSpecPath(target)
 	if err != nil {
 		return nil, wrkrerrors.New(
 			wrkrerrors.EInvalidInputSchema,
@@ -151,6 +151,14 @@ func NormalizeJobID(value string) string {
 		return "job"
 	}
 	return clean
+}
+
+func resolveJobSpecPath(path string) (string, error) {
+	cleaned := filepath.Clean(strings.TrimSpace(path))
+	if filepath.IsAbs(cleaned) {
+		return fsx.NormalizeAbsolutePath(cleaned)
+	}
+	return fsx.ResolveWithinWorkingDir(cleaned)
 }
 
 func defaultJobSpec(now time.Time, producerVersion string) v1.JobSpec {

@@ -128,7 +128,11 @@ func resolveConfigPath(path string) (string, error) {
 	if trimmed == "" {
 		trimmed = DefaultConfigPath
 	}
-	return fsx.ResolveWithinWorkingDir(filepath.Clean(trimmed))
+	cleaned := filepath.Clean(trimmed)
+	if filepath.IsAbs(cleaned) {
+		return fsx.NormalizeAbsolutePath(cleaned)
+	}
+	return fsx.ResolveWithinWorkingDir(cleaned)
 }
 
 func (c *Config) normalize() {

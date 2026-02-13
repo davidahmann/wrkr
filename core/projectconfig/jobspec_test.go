@@ -60,3 +60,28 @@ func TestNormalizeJobID(t *testing.T) {
 		t.Fatalf("unexpected normalized id: %s", got)
 	}
 }
+
+func TestInitAndLoadJobSpecAbsolutePath(t *testing.T) {
+	wd := t.TempDir()
+	path := filepath.Join(wd, "jobspec.yaml")
+	now := time.Date(2026, 2, 14, 1, 0, 0, 0, time.UTC)
+
+	written, err := InitJobSpec(path, false, now, "test")
+	if err != nil {
+		t.Fatalf("InitJobSpec: %v", err)
+	}
+	if written != path {
+		t.Fatalf("expected written path %q, got %q", path, written)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("jobspec missing: %v", err)
+	}
+
+	spec, err := LoadJobSpec(path)
+	if err != nil {
+		t.Fatalf("LoadJobSpec: %v", err)
+	}
+	if spec.SchemaID != "wrkr.jobspec" {
+		t.Fatalf("unexpected schema: %s", spec.SchemaID)
+	}
+}
