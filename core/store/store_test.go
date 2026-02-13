@@ -3,7 +3,9 @@ package store
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -125,7 +127,15 @@ func TestAppendEventReclaimsStaleLock(t *testing.T) {
 	}
 
 	lockPath := filepath.Join(s.Root(), "jobs", "job_5", "append.lock")
-	if err := os.WriteFile(lockPath, []byte("old-owner\n"), 0o600); err != nil {
+	cmd := exec.Command("sh", "-c", "exit 0")
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("create dead pid: %v", err)
+	}
+	if cmd.Process == nil {
+		t.Fatal("expected process info")
+	}
+	owner := "pid=" + strconv.Itoa(cmd.Process.Pid) + ";ts=1\n"
+	if err := os.WriteFile(lockPath, []byte(owner), 0o600); err != nil {
 		t.Fatalf("write stale lock: %v", err)
 	}
 	stale := time.Now().Add(-3 * time.Minute)

@@ -4,6 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
+	"syscall"
 	"time"
 )
 
@@ -67,15 +70,18 @@ func AcquireLockWithOptions(path, owner string, opts LockOptions) (*FileLock, er
 	if opts.StaleAfter > 0 {
 		info, statErr := os.Stat(path)
 		if statErr == nil && now().UTC().Sub(info.ModTime().UTC()) >= opts.StaleAfter {
-			if rmErr := os.Remove(path); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) {
-				return nil, fmt.Errorf("remove stale lock: %w", rmErr)
-			}
-			lock, err = claim()
-			if err == nil {
-				return lock, nil
-			}
-			if !errors.Is(err, os.ErrExist) {
-				return nil, fmt.Errorf("acquire lock: %w", err)
+			lockOwner, ownerErr := readLockOwner(path)
+			if ownerErr == nil && lockOwnerIsDead(lockOwner) {
+				if rmErr := os.Remove(path); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) {
+					return nil, fmt.Errorf("remove stale lock: %w", rmErr)
+				}
+				lock, err = claim()
+				if err == nil {
+					return lock, nil
+				}
+				if !errors.Is(err, os.ErrExist) {
+					return nil, fmt.Errorf("acquire lock: %w", err)
+				}
 			}
 		}
 	}
@@ -91,4 +97,50 @@ func (l *FileLock) Release() error {
 		return fmt.Errorf("release lock: %w", err)
 	}
 	return nil
+}
+
+func readLockOwner(path string) (string, error) {
+	// #nosec G304 -- caller passes a store-scoped lock path after job_id validation.
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
+}
+
+func parseOwnerPID(owner string) (int, bool) {
+	fields := strings.Split(owner, ";")
+	for _, field := range fields {
+		part := strings.TrimSpace(field)
+		if !strings.HasPrefix(part, "pid=") {
+			continue
+		}
+		v := strings.TrimPrefix(part, "pid=")
+		pid, err := strconv.Atoi(v)
+		if err != nil || pid <= 0 {
+			return 0, false
+		}
+		return pid, true
+	}
+	return 0, false
+}
+
+func lockOwnerIsDead(owner string) bool {
+	pid, ok := parseOwnerPID(owner)
+	if !ok {
+		// Fail closed for unknown owner formats.
+		return false
+	}
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	err = process.Signal(syscall.Signal(0))
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, os.ErrProcessDone) || errors.Is(err, syscall.ESRCH) {
+		return true
+	}
+	return false
 }

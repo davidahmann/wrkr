@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -121,7 +120,7 @@ func (s *LocalStore) appendEvent(jobID, eventType string, payload any, now time.
 
 	lock, err := fsx.AcquireLockWithOptions(
 		s.appendLockPath(jobID),
-		strconv.FormatInt(now.UnixNano(), 10),
+		fmt.Sprintf("pid=%d;ts=%d", os.Getpid(), now.UnixNano()),
 		fsx.LockOptions{StaleAfter: appendLockStaleAfter},
 	)
 	if err != nil {

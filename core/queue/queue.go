@@ -33,8 +33,9 @@ var allowedTransitions = map[Status]map[Status]struct{}{
 		StatusCanceled:        {},
 	},
 	StatusPaused: {
-		StatusRunning:  {},
-		StatusCanceled: {},
+		StatusRunning:      {},
+		StatusBlockedError: {},
+		StatusCanceled:     {},
 	},
 	StatusBlockedDecision: {
 		StatusRunning:  {},
@@ -50,6 +51,11 @@ var allowedTransitions = map[Status]map[Status]struct{}{
 	},
 	StatusCompleted: {},
 	StatusCanceled:  {},
+}
+
+func IsKnownStatus(status Status) bool {
+	_, ok := allowedTransitions[status]
+	return ok
 }
 
 func ValidateTransition(from, to Status) error {

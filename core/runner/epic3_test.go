@@ -198,3 +198,26 @@ func TestResumeBlocksOnEnvMismatchUnlessOverridden(t *testing.T) {
 		t.Fatal("expected override to persist current fingerprint hash")
 	}
 }
+
+func TestEmitCheckpointRejectsInvalidStatus(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 2, 13, 14, 0, 0, 0, time.UTC)
+	r := testRunner(t, now)
+
+	if _, err := r.InitJob("job_invalid_cp_status"); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	_, err := r.EmitCheckpoint("job_invalid_cp_status", CheckpointInput{
+		Type:    "progress",
+		Summary: "bad status should fail",
+		Status:  queue.Status("not-real"),
+	})
+	if err == nil {
+		t.Fatal("expected invalid status error")
+	}
+	var werr wrkrerrors.WrkrError
+	if !errors.As(err, &werr) || werr.Code != wrkrerrors.EInvalidInputSchema {
+		t.Fatalf("expected E_INVALID_INPUT_SCHEMA, got %v", err)
+	}
+}

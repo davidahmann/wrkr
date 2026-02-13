@@ -3,7 +3,9 @@ package fsx
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -54,7 +56,16 @@ func TestAcquireLockReclaimsStaleLock(t *testing.T) {
 	path := filepath.Join(dir, "append.lock")
 	now := time.Date(2026, 2, 13, 12, 0, 0, 0, time.UTC)
 
-	if err := os.WriteFile(path, []byte("stale-owner\n"), 0o600); err != nil {
+	cmd := exec.Command("sh", "-c", "exit 0")
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("create dead pid: %v", err)
+	}
+	if cmd.Process == nil {
+		t.Fatal("expected process info")
+	}
+
+	owner := "pid=" + strconv.Itoa(cmd.Process.Pid) + ";ts=1\n"
+	if err := os.WriteFile(path, []byte(owner), 0o600); err != nil {
 		t.Fatalf("write stale lock: %v", err)
 	}
 	old := now.Add(-2 * time.Minute)
@@ -70,4 +81,29 @@ func TestAcquireLockReclaimsStaleLock(t *testing.T) {
 		t.Fatalf("expected stale lock reclaim, got %v", err)
 	}
 	t.Cleanup(func() { _ = lock.Release() })
+}
+
+func TestAcquireLockDoesNotReclaimActiveOwner(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "append.lock")
+	now := time.Date(2026, 2, 13, 12, 0, 0, 0, time.UTC)
+
+	owner := "pid=" + strconv.Itoa(os.Getpid()) + ";ts=1\n"
+	if err := os.WriteFile(path, []byte(owner), 0o600); err != nil {
+		t.Fatalf("write active lock: %v", err)
+	}
+	old := now.Add(-2 * time.Minute)
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatalf("chtimes active lock: %v", err)
+	}
+
+	_, err := AcquireLockWithOptions(path, "owner2", LockOptions{
+		StaleAfter: 30 * time.Second,
+		Now:        func() time.Time { return now },
+	})
+	if !errors.Is(err, ErrLockBusy) {
+		t.Fatalf("expected ErrLockBusy for active owner, got %v", err)
+	}
 }
