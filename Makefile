@@ -68,10 +68,10 @@ test-uat-local:
 	@echo "[wrkr] test-uat-local placeholder (Epic >0)"
 
 docs-site-install:
-	@echo "[wrkr] docs-site-install placeholder (Epic >0)"
+	cd docs-site && npm ci
 
 docs-site-build:
-	@echo "[wrkr] docs-site-build placeholder (Epic >0)"
+	cd docs-site && npm run build
 
 docs-site-lint:
-	@echo "[wrkr] docs-site-lint placeholder (Epic >0)"
+	cd docs-site && npm run lint

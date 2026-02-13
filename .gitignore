@@ -6,3 +6,7 @@ bin/
 dist/
 coverage/
 .pytest_cache/
+node_modules/
+docs-site/node_modules/
+docs-site/.next/
+docs-site/out/

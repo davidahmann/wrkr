@@ -91,9 +91,7 @@ checkpoint_policy:
 environment_fingerprint:
   rules: [go_version]
 `
-	if err := os.WriteFile(specPath, []byte(spec), 0o600); err != nil {
-		t.Fatalf("write jobspec: %v", err)
-	}
+	writeSpec(t, specPath, spec)
 
 	var out bytes.Buffer
 	var errBuf bytes.Buffer
@@ -124,6 +122,15 @@ environment_fingerprint:
 		t.Fatal("expected decision-needed checkpoint")
 	}
 
+	s, err := store.New("")
+	if err != nil {
+		t.Fatalf("store.New: %v", err)
+	}
+	beforeEvents, err := s.LoadEvents("job_epic6_submit")
+	if err != nil {
+		t.Fatalf("LoadEvents before bridge: %v", err)
+	}
+
 	out.Reset()
 	errBuf.Reset()
 	code = run([]string{"bridge", "work-item", "job_epic6_submit", "--checkpoint", decisionID, "--dry-run", "--json"}, &out, &errBuf, func() time.Time { return now })
@@ -132,6 +139,117 @@ environment_fingerprint:
 	}
 	if !strings.Contains(out.String(), "\"next_commands\"") {
 		t.Fatalf("expected next_commands in bridge output: %s", out.String())
+	}
+	afterEvents, err := s.LoadEvents("job_epic6_submit")
+	if err != nil {
+		t.Fatalf("LoadEvents after bridge: %v", err)
+	}
+	if len(beforeEvents) != len(afterEvents) {
+		t.Fatalf("dry-run bridge mutated state: before=%d after=%d", len(beforeEvents), len(afterEvents))
+	}
+}
+
+func TestReferenceAdapterSubmitResumeAcceptExportFlow(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	now := time.Date(2026, 2, 14, 3, 45, 0, 0, time.UTC)
+
+	specPath := filepath.Join(t.TempDir(), "jobspec_flow.yaml")
+	spec := `schema_id: wrkr.jobspec
+schema_version: v1
+created_at: "2026-02-14T03:45:00Z"
+producer_version: test
+name: epic6-flow
+objective: full structured adapter flow
+inputs:
+  steps:
+    - id: build
+      summary: build artifact
+      command: "true"
+      artifacts: [reports/out.md]
+      executed: true
+    - id: approve
+      summary: manager approval
+      decision_needed: true
+      required_action: approval
+      executed: false
+expected_artifacts: [reports/out.md]
+adapter: { name: reference }
+budgets:
+  max_wall_time_seconds: 100
+  max_retries: 1
+  max_step_count: 10
+  max_tool_calls: 10
+checkpoint_policy:
+  min_interval_seconds: 1
+  required_types: [plan, progress, decision-needed]
+environment_fingerprint:
+  rules: [go_version]
+`
+	writeSpec(t, specPath, spec)
+
+	var out bytes.Buffer
+	var errBuf bytes.Buffer
+	code := run([]string{"submit", specPath, "--job-id", "job_epic6_flow", "--json"}, &out, &errBuf, func() time.Time { return now })
+	if code != 0 {
+		t.Fatalf("submit failed: %d %s", code, errBuf.String())
+	}
+	decisionID := decisionCheckpointID(t, "job_epic6_flow", now)
+	if decisionID == "" {
+		t.Fatal("expected decision checkpoint for flow test")
+	}
+
+	out.Reset()
+	errBuf.Reset()
+	code = run([]string{"approve", "job_epic6_flow", "--checkpoint", decisionID, "--reason", "approved", "--approved-by", "lead", "--json"}, &out, &errBuf, func() time.Time { return now })
+	if code != 0 {
+		t.Fatalf("approve failed: %d %s", code, errBuf.String())
+	}
+
+	out.Reset()
+	errBuf.Reset()
+	code = run([]string{"resume", "job_epic6_flow", "--json"}, &out, &errBuf, func() time.Time { return now })
+	if code != 0 {
+		t.Fatalf("resume failed: %d %s", code, errBuf.String())
+	}
+	if !strings.Contains(out.String(), "\"status\": \"running\"") {
+		t.Fatalf("unexpected resume output: %s", out.String())
+	}
+
+	configPath := filepath.Join(t.TempDir(), "accept.yaml")
+	if err := os.WriteFile(configPath, []byte(`schema_id: wrkr.accept_config
+schema_version: v1
+required_artifacts:
+  - reports/out.md
+test_command: "true"
+lint_command: "true"
+path_rules:
+  max_artifact_paths: 10
+  forbidden_prefixes: []
+  allowed_prefixes:
+    - reports/
+`), 0o600); err != nil {
+		t.Fatalf("write accept config: %v", err)
+	}
+
+	out.Reset()
+	errBuf.Reset()
+	code = run([]string{"accept", "run", "job_epic6_flow", "--config", configPath, "--json"}, &out, &errBuf, func() time.Time { return now })
+	if code != 0 {
+		t.Fatalf("accept run failed: %d %s", code, errBuf.String())
+	}
+	if !strings.Contains(out.String(), "\"job_id\": \"job_epic6_flow\"") || strings.Contains(out.String(), "E_ACCEPT_") {
+		t.Fatalf("unexpected accept output: %s", out.String())
+	}
+
+	out.Reset()
+	errBuf.Reset()
+	code = run([]string{"export", "job_epic6_flow", "--json"}, &out, &errBuf, func() time.Time { return now })
+	if code != 0 {
+		t.Fatalf("export failed: %d %s", code, errBuf.String())
+	}
+	if !strings.Contains(out.String(), "\"job_id\": \"job_epic6_flow\"") {
+		t.Fatalf("unexpected export output: %s", out.String())
 	}
 }
 
@@ -207,4 +325,29 @@ func TestPauseCancelAndWrap(t *testing.T) {
 	if !strings.Contains(out.String(), "\"job_id\": \"job_epic6_wrap_fixture\"") {
 		t.Fatalf("unexpected wrap fixture output: %s", out.String())
 	}
+}
+
+func writeSpec(t *testing.T, path, spec string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(spec), 0o600); err != nil {
+		t.Fatalf("write jobspec: %v", err)
+	}
+}
+
+func decisionCheckpointID(t *testing.T, jobID string, now time.Time) string {
+	t.Helper()
+	r, _, err := openRunner(func() time.Time { return now })
+	if err != nil {
+		t.Fatalf("openRunner: %v", err)
+	}
+	checkpoints, err := r.ListCheckpoints(jobID)
+	if err != nil {
+		t.Fatalf("ListCheckpoints: %v", err)
+	}
+	for _, cp := range checkpoints {
+		if cp.Type == "decision-needed" {
+			return cp.CheckpointID
+		}
+	}
+	return ""
 }
