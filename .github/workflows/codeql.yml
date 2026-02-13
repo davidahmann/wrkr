@@ -2,23 +2,9 @@ name: codeql
 
 on:
   pull_request:
-    paths:
-      - "cmd/**"
-      - "core/**"
-      - "internal/**"
-      - "go.mod"
-      - "go.sum"
-      - ".github/workflows/codeql.yml"
   push:
     branches:
       - master
-    paths:
-      - "cmd/**"
-      - "core/**"
-      - "internal/**"
-      - "go.mod"
-      - "go.sum"
-      - ".github/workflows/codeql.yml"
   schedule:
     - cron: "7 7 * * 1"
   workflow_dispatch:

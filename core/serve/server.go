@@ -488,11 +488,15 @@ func hostPart(listenAddr string) string {
 
 func isLoopbackHost(host string) bool {
 	host = strings.TrimSpace(strings.Trim(host, "[]"))
-	if host == "" || host == "localhost" {
+	if host == "localhost" {
 		return true
 	}
+	if host == "" {
+		// ":<port>" and similar wildcard forms bind on all interfaces.
+		return false
+	}
 	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
+	return ip != nil && ip.IsLoopback() && !ip.IsUnspecified()
 }
 
 func rejectTraversal(value string) error {

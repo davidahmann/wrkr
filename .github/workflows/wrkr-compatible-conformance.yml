@@ -2,25 +2,9 @@ name: wrkr-compatible-conformance
 
 on:
   pull_request:
-    paths:
-      - "cmd/**"
-      - "core/**"
-      - "docs/contracts/**"
-      - "scripts/test_wrkr_compatible_conformance.sh"
-      - "scripts/test_github_summary_golden.sh"
-      - "scripts/test_serve_hardening.sh"
-      - ".github/workflows/wrkr-compatible-conformance.yml"
   push:
     branches:
       - master
-    paths:
-      - "cmd/**"
-      - "core/**"
-      - "docs/contracts/**"
-      - "scripts/test_wrkr_compatible_conformance.sh"
-      - "scripts/test_github_summary_golden.sh"
-      - "scripts/test_serve_hardening.sh"
-      - ".github/workflows/wrkr-compatible-conformance.yml"
   workflow_dispatch:
 
 permissions:

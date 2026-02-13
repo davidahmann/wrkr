@@ -9,7 +9,7 @@ echo "[wrkr] collecting dependency inventory"
 deps_file="${out_dir}/license_inventory_go.txt"
 go list -m all | LC_ALL=C sort > "${deps_file}"
 
-if grep -E '\.(local|internal)$' "${deps_file}" >/dev/null 2>&1; then
+if awk '{print $1}' "${deps_file}" | grep -E '\.(local|internal)$' >/dev/null 2>&1; then
   echo "[wrkr] unexpected local/internal modules found in dependency inventory"
   exit 1
 fi

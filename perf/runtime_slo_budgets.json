@@ -1,0 +1,42 @@
+{
+  "schema_version": "v1",
+  "commands": [
+    {
+      "id": "version_json",
+      "args": [
+        "--json",
+        "version"
+      ],
+      "max_ms": 1200
+    },
+    {
+      "id": "doctor_json",
+      "args": [
+        "--json",
+        "doctor"
+      ],
+      "max_ms": 2500
+    },
+    {
+      "id": "demo_json",
+      "args": [
+        "--json",
+        "demo",
+        "--out-dir",
+        "{out_dir}"
+      ],
+      "max_ms": 9000
+    },
+    {
+      "id": "verify_json",
+      "args": [
+        "--json",
+        "verify",
+        "{job_id}",
+        "--out-dir",
+        "{out_dir}"
+      ],
+      "max_ms": 5000
+    }
+  ]
+}
