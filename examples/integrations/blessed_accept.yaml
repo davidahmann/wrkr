@@ -1,0 +1,10 @@
+schema_id: wrkr.accept_config
+schema_version: v1
+required_artifacts:
+  - reports/demo.md
+test_command: "true"
+lint_command: "true"
+path_rules:
+  max_artifact_paths: 0
+  forbidden_prefixes: []
+  allowed_prefixes: []

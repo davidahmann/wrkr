@@ -1,0 +1,12 @@
+name: wrkr-adoption-example
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wrkr-adoption:
+    uses: ./.github/workflows/adoption-regress-template.yml

@@ -61,13 +61,14 @@ if [[ "$archive_count" -lt 6 ]]; then
 fi
 
 if [[ -n "$expected_tag" ]]; then
+  archive_version="${expected_tag#v}"
   expected=(
-    "wrkr_${expected_tag}_darwin_amd64.tar.gz"
-    "wrkr_${expected_tag}_darwin_arm64.tar.gz"
-    "wrkr_${expected_tag}_linux_amd64.tar.gz"
-    "wrkr_${expected_tag}_linux_arm64.tar.gz"
-    "wrkr_${expected_tag}_windows_amd64.zip"
-    "wrkr_${expected_tag}_windows_arm64.zip"
+    "wrkr_${archive_version}_darwin_amd64.tar.gz"
+    "wrkr_${archive_version}_darwin_arm64.tar.gz"
+    "wrkr_${archive_version}_linux_amd64.tar.gz"
+    "wrkr_${archive_version}_linux_arm64.tar.gz"
+    "wrkr_${archive_version}_windows_amd64.zip"
+    "wrkr_${archive_version}_windows_arm64.zip"
   )
   for file in "${expected[@]}"; do
     if [[ ! -f "$dist_dir/$file" ]]; then

@@ -1,19 +1,18 @@
-name: adoption-nightly
+name: adoption-regress-template
 
 on:
-  schedule:
-    - cron: "17 6 * * *"
+  workflow_call:
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: adoption-nightly-${{ github.ref }}
+  group: adoption-regress-template-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  adoption-nightly:
+  wrkr-compatible-regression:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -32,13 +31,13 @@ jobs:
       - name: Install uv
         run: python -m pip install --upgrade pip uv
 
-      - name: Adoption regression lane
-        run: make test-adoption test-uat-local test-v1-acceptance test-conformance
+      - name: Run adoption + conformance lane
+        run: make test-adoption test-conformance
 
-      - name: Upload nightly artifacts
+      - name: Upload lane artifacts
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
-          name: adoption-nightly-artifacts
+          name: adoption-regress-artifacts
           path: wrkr-out/**
           if-no-files-found: ignore

@@ -35,8 +35,12 @@ def main() -> int:
     command = list(request.get("command", []))
     dry_run = bool(request.get("dry_run", False)) or args.dry_run
 
+    timestamp = str(request.get("timestamp_utc") or "").strip()
+    if not timestamp:
+        timestamp = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
     result = {
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "timestamp_utc": timestamp,
         "lane": lane,
         "job_id": request.get("job_id"),
         "dry_run": dry_run,

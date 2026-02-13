@@ -50,4 +50,6 @@ This is the authoritative documentation map for Wrkr.
 - CodeQL triage: `docs/security/codeql_triage.md`
 - OSS license policy: `docs/security/license_policy.md`
 - Release hardening checklist: `docs/hardening/release_checklist.md`
+- UAT functional plan: `docs/uat_functional_plan.md`
+- Test cadence policy: `docs/test_cadence.md`
 - GitHub release template: `docs/launch/github_release_template.md`
