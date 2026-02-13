@@ -83,12 +83,8 @@ func canonicalizePath(path string) string {
 	probe := cleaned
 
 	for {
-		_, err := os.Lstat(probe)
+		resolved, err := filepath.EvalSymlinks(probe)
 		if err == nil {
-			resolved, err := filepath.EvalSymlinks(probe)
-			if err != nil {
-				return cleaned
-			}
 			rel, err := filepath.Rel(probe, cleaned)
 			if err != nil {
 				return cleaned
