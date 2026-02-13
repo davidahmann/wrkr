@@ -1,9 +1,12 @@
 version: 2
 project_name: wrkr
+
 builds:
   - id: wrkr
     main: ./cmd/wrkr
     binary: wrkr
+    env:
+      - CGO_ENABLED=0
     goos:
       - darwin
       - linux
@@ -11,10 +14,36 @@ builds:
     goarch:
       - amd64
       - arm64
+    flags:
+      - -trimpath
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    ldflags:
+      - -s -w -X main.version={{ .Version }} -X main.commit={{ .Commit }} -X main.date={{ .CommitDate }}
+
 archives:
-  - formats: ["tar.gz"]
+  - id: wrkr-archive
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    wrap_in_directory: false
+    files:
+      - README.md
+      - CHANGELOG.md
+
 checksum:
-  name_template: "checksums.txt"
+  name_template: checksums.txt
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ .Version }}-next"
+
 changelog:
   disable: true
+
+release:
+  draft: false
+  prerelease: auto
