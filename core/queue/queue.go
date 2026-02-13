@@ -38,12 +38,14 @@ var allowedTransitions = map[Status]map[Status]struct{}{
 		StatusCanceled:     {},
 	},
 	StatusBlockedDecision: {
-		StatusRunning:  {},
-		StatusCanceled: {},
+		StatusRunning:      {},
+		StatusBlockedError: {},
+		StatusCanceled:     {},
 	},
 	StatusBlockedBudget: {
-		StatusRunning:  {},
-		StatusCanceled: {},
+		StatusRunning:      {},
+		StatusBlockedError: {},
+		StatusCanceled:     {},
 	},
 	StatusBlockedError: {
 		StatusRunning:  {},

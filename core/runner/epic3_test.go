@@ -199,6 +199,49 @@ func TestResumeBlocksOnEnvMismatchUnlessOverridden(t *testing.T) {
 	}
 }
 
+func TestResumeBlocksOnEnvMismatchFromBlockedDecision(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 2, 13, 14, 0, 0, 0, time.UTC)
+	r := testRunner(t, now)
+
+	if _, err := r.InitJob("job_env_blocked_decision"); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	if _, err := r.ChangeStatus("job_env_blocked_decision", queue.StatusRunning); err != nil {
+		t.Fatalf("running: %v", err)
+	}
+	if _, err := r.ChangeStatus("job_env_blocked_decision", queue.StatusBlockedDecision); err != nil {
+		t.Fatalf("blocked decision: %v", err)
+	}
+
+	if _, err := r.store.AppendEvent("job_env_blocked_decision", eventEnvFingerprintSet, map[string]any{
+		"rules":       []string{"os"},
+		"values":      map[string]string{"os": "bogus-os"},
+		"hash":        "deadbeef",
+		"captured_at": now.UTC(),
+	}, now); err != nil {
+		t.Fatalf("inject mismatch fingerprint: %v", err)
+	}
+
+	if _, err := r.Resume("job_env_blocked_decision", ResumeInput{}); err == nil {
+		t.Fatal("expected env mismatch error")
+	} else {
+		var werr wrkrerrors.WrkrError
+		if !errors.As(err, &werr) || werr.Code != wrkrerrors.EEnvFingerprintMismatch {
+			t.Fatalf("expected E_ENV_FINGERPRINT_MISMATCH, got %v", err)
+		}
+	}
+
+	state, err := r.Recover("job_env_blocked_decision")
+	if err != nil {
+		t.Fatalf("recover: %v", err)
+	}
+	if state.Status != queue.StatusBlockedError {
+		t.Fatalf("expected blocked_error status, got %s", state.Status)
+	}
+}
+
 func TestEmitCheckpointRejectsInvalidStatus(t *testing.T) {
 	t.Parallel()
 

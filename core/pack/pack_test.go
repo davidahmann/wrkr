@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -129,6 +130,101 @@ func TestVerifyDetectsTampering(t *testing.T) {
 	}
 }
 
+func TestVerifyRejectsUndeclaredArchiveEntries(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	now := time.Date(2026, 2, 13, 18, 0, 0, 0, time.UTC)
+	setupJob(t, "job_extra_entry", now)
+
+	exported, err := ExportJobpack("job_extra_entry", ExportOptions{
+		OutDir:          t.TempDir(),
+		ProducerVersion: "test",
+		Now:             func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+
+	archive, err := LoadArchive(exported.Path)
+	if err != nil {
+		t.Fatalf("load archive: %v", err)
+	}
+	archive.Files["smuggled.txt"] = []byte("malicious extra file")
+
+	entries := make([]zipx.Entry, 0, len(archive.Files))
+	for name, data := range archive.Files {
+		entries = append(entries, zipx.Entry{Name: name, Data: data})
+	}
+	tamperedZip, err := zipx.BuildDeterministic(entries)
+	if err != nil {
+		t.Fatalf("build tampered zip: %v", err)
+	}
+	tamperedPath := filepath.Join(t.TempDir(), "tampered-extra-entry.zip")
+	if err := os.WriteFile(tamperedPath, tamperedZip, 0o600); err != nil {
+		t.Fatalf("write tampered zip: %v", err)
+	}
+
+	_, err = VerifyJobpack(tamperedPath)
+	if err == nil {
+		t.Fatal("expected undeclared file verify failure")
+	}
+	var werr wrkrerrors.WrkrError
+	if !errors.As(err, &werr) || werr.Code != wrkrerrors.EVerifyHashMismatch {
+		t.Fatalf("expected E_VERIFY_HASH_MISMATCH, got %v", err)
+	}
+}
+
+func TestVerifyRejectsOversizedInvalidJSONLRecord(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	now := time.Date(2026, 2, 13, 18, 0, 0, 0, time.UTC)
+	setupJob(t, "job_jsonl_overflow", now)
+
+	exported, err := ExportJobpack("job_jsonl_overflow", ExportOptions{
+		OutDir:          t.TempDir(),
+		ProducerVersion: "test",
+		Now:             func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+
+	archive, err := LoadArchive(exported.Path)
+	if err != nil {
+		t.Fatalf("load archive: %v", err)
+	}
+	archive.Files["events.jsonl"] = []byte(
+		`{"schema_id":"wrkr.event","schema_version":"v1","created_at":"2026-02-13T18:00:00Z","producer_version":"test","event_id":"evt_big","job_id":"job_jsonl_overflow","type":"big","executed":true,"payload":{"blob":"` +
+			strings.Repeat("x", 70_000) +
+			`"` + "\n",
+	)
+	if err := rewriteArchiveManifest(archive); err != nil {
+		t.Fatalf("rewrite manifest: %v", err)
+	}
+
+	entries := make([]zipx.Entry, 0, len(archive.Files))
+	for name, data := range archive.Files {
+		entries = append(entries, zipx.Entry{Name: name, Data: data})
+	}
+	tamperedZip, err := zipx.BuildDeterministic(entries)
+	if err != nil {
+		t.Fatalf("build tampered zip: %v", err)
+	}
+	tamperedPath := filepath.Join(t.TempDir(), "tampered-jsonl-overflow.zip")
+	if err := os.WriteFile(tamperedPath, tamperedZip, 0o600); err != nil {
+		t.Fatalf("write tampered zip: %v", err)
+	}
+
+	_, err = VerifyJobpack(tamperedPath)
+	if err == nil {
+		t.Fatal("expected invalid jsonl verify failure")
+	}
+	var werr wrkrerrors.WrkrError
+	if !errors.As(err, &werr) || werr.Code != wrkrerrors.EInvalidInputSchema {
+		t.Fatalf("expected E_INVALID_INPUT_SCHEMA, got %v", err)
+	}
+}
+
 func TestInspectAndDiffDeterministic(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -173,4 +269,30 @@ func TestInspectAndDiffDeterministic(t *testing.T) {
 	if len(diff.Changed) == 0 && len(diff.Added) == 0 && len(diff.Removed) == 0 {
 		t.Fatalf("expected non-empty diff between jobpacks: %+v", diff)
 	}
+}
+
+func rewriteArchiveManifest(archive *Archive) error {
+	manifest := archive.Manifest
+	files := make(map[string][]byte, len(archive.Files))
+	for path, data := range archive.Files {
+		if path == "manifest.json" {
+			continue
+		}
+		files[path] = data
+	}
+
+	manifest.Files = SortedFileList(files)
+	manifestSHA, err := ComputeManifestSHA256(manifest)
+	if err != nil {
+		return err
+	}
+	manifest.ManifestSHA256 = manifestSHA
+
+	manifestBytes, err := EncodeJSONCanonical(manifest)
+	if err != nil {
+		return err
+	}
+	archive.Files["manifest.json"] = manifestBytes
+	archive.Manifest = manifest
+	return nil
 }
