@@ -1,0 +1,1 @@
+{"schema":"report/github_summary.schema.json","data":{"schema_version":"v1","created_at":"2026-02-13T10:00:00Z","producer_version":"dev","job_id":"job","status":"completed","acceptance":{"checks_run":1,"checks_passed":1,"failed":false},"artifact_delta":{"added":0,"changed":0,"removed":0},"markdown":"ok"}}

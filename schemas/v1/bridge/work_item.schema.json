@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wrkr.dev/schemas/v1/bridge/work_item.schema.json",
+  "title": "Wrkr Work Item Payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "created_at",
+    "producer_version",
+    "job_id",
+    "checkpoint_id",
+    "checkpoint_type",
+    "required_action",
+    "reason_codes",
+    "next_commands"
+  ],
+  "properties": {
+    "schema_id": { "const": "wrkr.work_item" },
+    "schema_version": { "type": "string", "pattern": "^v1(\\.[0-9]+)?$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "producer_version": { "type": "string", "minLength": 1 },
+    "job_id": { "type": "string", "minLength": 1 },
+    "checkpoint_id": { "type": "string", "minLength": 1 },
+    "checkpoint_type": { "type": "string", "enum": ["blocked", "decision-needed"] },
+    "required_action": { "type": "string", "minLength": 1 },
+    "reason_codes": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "artifact_pointers": { "type": "array", "items": { "type": "string" } },
+    "next_commands": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+  }
+}

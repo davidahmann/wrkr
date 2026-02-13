@@ -1,0 +1,12 @@
+{
+  "schema": "status/status_response.schema.json",
+  "data": {
+    "schema_id": "wrkr.status_response",
+    "schema_version": "v1",
+    "created_at": "2026-02-13T10:00:00Z",
+    "producer_version": "dev",
+    "job_id": "job_1",
+    "status": "running",
+    "summary": "all good"
+  }
+}

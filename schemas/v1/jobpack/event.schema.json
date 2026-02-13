@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wrkr.dev/schemas/v1/jobpack/event.schema.json",
+  "title": "Wrkr Event Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "created_at",
+    "producer_version",
+    "event_id",
+    "job_id",
+    "type",
+    "executed",
+    "payload"
+  ],
+  "properties": {
+    "schema_id": { "const": "wrkr.event" },
+    "schema_version": { "type": "string", "pattern": "^v1(\\.[0-9]+)?$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "producer_version": { "type": "string", "minLength": 1 },
+    "event_id": { "type": "string", "minLength": 1 },
+    "job_id": { "type": "string", "minLength": 1 },
+    "type": { "type": "string", "minLength": 1 },
+    "executed": { "type": "boolean" },
+    "payload": { "type": "object", "additionalProperties": true }
+  }
+}

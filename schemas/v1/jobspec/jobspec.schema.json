@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wrkr.dev/schemas/v1/jobspec/jobspec.schema.json",
+  "title": "Wrkr JobSpec",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "created_at",
+    "producer_version",
+    "name",
+    "objective",
+    "inputs",
+    "expected_artifacts",
+    "adapter",
+    "budgets",
+    "checkpoint_policy"
+  ],
+  "properties": {
+    "schema_id": { "const": "wrkr.jobspec" },
+    "schema_version": { "type": "string", "pattern": "^v1(\\.[0-9]+)?$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "producer_version": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "objective": { "type": "string", "minLength": 1 },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "workspace": { "type": "string" },
+        "references": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "expected_artifacts": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "adapter": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "config": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_wall_time_seconds", "max_retries", "max_step_count", "max_tool_calls"],
+      "properties": {
+        "max_wall_time_seconds": { "type": "integer", "minimum": 1 },
+        "max_retries": { "type": "integer", "minimum": 0 },
+        "max_step_count": { "type": "integer", "minimum": 1 },
+        "max_tool_calls": { "type": "integer", "minimum": 1 },
+        "max_estimated_cost": { "type": "number", "minimum": 0 },
+        "max_tokens": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "checkpoint_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min_interval_seconds", "required_types"],
+      "properties": {
+        "min_interval_seconds": { "type": "integer", "minimum": 1 },
+        "required_types": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["plan", "progress", "decision-needed", "blocked", "completed"]
+          }
+        }
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "config_path": { "type": "string" }
+      }
+    },
+    "environment_fingerprint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rules"],
+      "properties": {
+        "rules": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

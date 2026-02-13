@@ -1,0 +1,38 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Wrkr Local Service API",
+    "version": "v1"
+  },
+  "servers": [
+    { "url": "http://127.0.0.1:9488" }
+  ],
+  "paths": {
+    "/v1/jobs:submit": {
+      "post": {
+        "summary": "Submit job",
+        "responses": {
+          "200": { "description": "Accepted" },
+          "400": { "description": "Invalid request" }
+        }
+      }
+    },
+    "/v1/jobs/{job_id}:status": {
+      "get": {
+        "summary": "Get status",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Status response" },
+          "404": { "description": "Not found" }
+        }
+      }
+    }
+  }
+}

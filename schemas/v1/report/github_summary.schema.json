@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wrkr.dev/schemas/v1/report/github_summary.schema.json",
+  "title": "Wrkr GitHub Summary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "created_at",
+    "producer_version",
+    "job_id",
+    "status",
+    "acceptance",
+    "artifact_delta",
+    "markdown"
+  ],
+  "properties": {
+    "schema_id": { "const": "wrkr.github_summary" },
+    "schema_version": { "type": "string", "pattern": "^v1(\\.[0-9]+)?$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "producer_version": { "type": "string", "minLength": 1 },
+    "job_id": { "type": "string", "minLength": 1 },
+    "status": { "type": "string", "minLength": 1 },
+    "acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["checks_run", "checks_passed", "failed"],
+      "properties": {
+        "checks_run": { "type": "integer", "minimum": 0 },
+        "checks_passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "boolean" }
+      }
+    },
+    "artifact_delta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["added", "changed", "removed"],
+      "properties": {
+        "added": { "type": "integer", "minimum": 0 },
+        "changed": { "type": "integer", "minimum": 0 },
+        "removed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "markdown": { "type": "string", "minLength": 1 }
+  }
+}

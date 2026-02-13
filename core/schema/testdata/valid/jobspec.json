@@ -1,0 +1,24 @@
+{
+  "schema": "jobspec/jobspec.schema.json",
+  "data": {
+    "schema_id": "wrkr.jobspec",
+    "schema_version": "v1",
+    "created_at": "2026-02-13T10:00:00Z",
+    "producer_version": "dev",
+    "name": "upgrade deps",
+    "objective": "upgrade dependencies safely",
+    "inputs": {"workspace": "/tmp/repo"},
+    "expected_artifacts": ["report.md"],
+    "adapter": {"name": "wrap"},
+    "budgets": {
+      "max_wall_time_seconds": 3600,
+      "max_retries": 1,
+      "max_step_count": 100,
+      "max_tool_calls": 200
+    },
+    "checkpoint_policy": {
+      "min_interval_seconds": 60,
+      "required_types": ["plan", "progress", "completed"]
+    }
+  }
+}
