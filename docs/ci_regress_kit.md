@@ -7,8 +7,10 @@ Use this kit to detect contract and behavior regressions quickly.
 - `make lint-fast`
 - `make test-fast`
 - `make test-contracts`
+- `make test-conformance`
 - `make test-acceptance`
 - `make sast-fast`
+- `make license-check`
 
 ## Required Artifact Capture
 

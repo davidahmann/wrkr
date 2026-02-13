@@ -14,3 +14,7 @@ Contract rules:
 Reference parser/generator:
 - `core/pack/footer.go`
 - `cmd/wrkr/receipt.go`
+
+Conformance automation:
+- `scripts/test_ticket_footer_conformance.sh`
+- `.github/workflows/ticket-footer-conformance.yml`

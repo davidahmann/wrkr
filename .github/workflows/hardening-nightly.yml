@@ -1,0 +1,46 @@
+name: hardening-nightly
+
+on:
+  schedule:
+    - cron: "27 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hardening-nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hardening-nightly:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Setup Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.25.x'
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+
+      - name: Hardening suite
+        env:
+          WRKR_KEEP_TMP: "1"
+        run: make lint-fast test-fast sast-fast test-hardening-acceptance test-serve-hardening
+
+      - name: Upload nightly artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: hardening-nightly-artifacts
+          path: wrkr-out/**
+          if-no-files-found: ignore

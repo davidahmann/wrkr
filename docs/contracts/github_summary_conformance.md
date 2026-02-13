@@ -21,3 +21,7 @@ For identical `jobpack` input:
 - Markdown content is byte-stable.
 - Artifact pointers are sorted lexicographically and capped to 5 items.
 - Top failures are emitted in deterministic acceptance-result order and capped to 5 items.
+
+Conformance automation:
+- `scripts/test_github_summary_golden.sh`
+- `.github/workflows/wrkr-compatible-conformance.yml`

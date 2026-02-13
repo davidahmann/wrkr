@@ -1,0 +1,53 @@
+name: codeql
+
+on:
+  pull_request:
+    paths:
+      - "cmd/**"
+      - "core/**"
+      - "internal/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/codeql.yml"
+  push:
+    branches:
+      - master
+    paths:
+      - "cmd/**"
+      - "core/**"
+      - "internal/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/codeql.yml"
+  schedule:
+    - cron: "7 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  codeql:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@60d8f0d1f1f8c8d07ef53bd027032705d414ec28
+        with:
+          languages: go
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@60d8f0d1f1f8c8d07ef53bd027032705d414ec28
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@60d8f0d1f1f8c8d07ef53bd027032705d414ec28
+        with:
+          category: "/language:go"
