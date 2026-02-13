@@ -8,9 +8,7 @@ import (
 	"time"
 
 	wrkrerrors "github.com/davidahmann/wrkr/core/errors"
-	"github.com/davidahmann/wrkr/core/runner"
 	statusview "github.com/davidahmann/wrkr/core/status"
-	"github.com/davidahmann/wrkr/core/store"
 )
 
 func runStatus(args []string, jsonMode bool, stdout, stderr io.Writer, now func() time.Time) int {
@@ -24,30 +22,11 @@ func runStatus(args []string, jsonMode bool, stdout, stderr io.Writer, now func(
 	}
 
 	jobID := args[0]
-	s, err := store.New("")
+	r, s, err := openRunner(now)
 	if err != nil {
 		return printError(err, jsonMode, stderr, now)
 	}
-
-	exists, err := s.JobExists(jobID)
-	if err != nil {
-		return printError(err, jsonMode, stderr, now)
-	}
-	if !exists {
-		return printError(
-			wrkrerrors.New(
-				wrkrerrors.EInvalidInputSchema,
-				"job not found",
-				map[string]any{"job_id": jobID},
-			),
-			jsonMode,
-			stderr,
-			now,
-		)
-	}
-
-	r, err := runner.New(s, runner.Options{Now: now})
-	if err != nil {
+	if err := ensureJobExists(s, jobID); err != nil {
 		return printError(err, jsonMode, stderr, now)
 	}
 	state, err := r.Recover(jobID)

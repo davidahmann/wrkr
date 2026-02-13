@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -94,5 +95,45 @@ func TestSnapshotRoundTrip(t *testing.T) {
 	}
 	if snap.LastSeq != 7 {
 		t.Fatalf("expected last seq 7, got %d", snap.LastSeq)
+	}
+}
+
+func TestAppendEventCASConflict(t *testing.T) {
+	t.Parallel()
+
+	s := newTestStore(t)
+	now := time.Date(2026, 2, 13, 10, 0, 0, 0, time.UTC)
+
+	ev1, err := s.AppendEvent("job_4", "a", nil, now)
+	if err != nil {
+		t.Fatalf("append event 1: %v", err)
+	}
+
+	if _, err := s.AppendEventCAS("job_4", "b", nil, ev1.Seq-1, now.Add(time.Second)); !errors.Is(err, ErrCASConflict) {
+		t.Fatalf("expected ErrCASConflict, got %v", err)
+	}
+}
+
+func TestAppendEventReclaimsStaleLock(t *testing.T) {
+	t.Parallel()
+
+	s := newTestStore(t)
+	now := time.Date(2026, 2, 13, 10, 0, 0, 0, time.UTC)
+
+	if err := s.EnsureJob("job_5"); err != nil {
+		t.Fatalf("ensure job: %v", err)
+	}
+
+	lockPath := filepath.Join(s.Root(), "jobs", "job_5", "append.lock")
+	if err := os.WriteFile(lockPath, []byte("old-owner\n"), 0o600); err != nil {
+		t.Fatalf("write stale lock: %v", err)
+	}
+	stale := time.Now().Add(-3 * time.Minute)
+	if err := os.Chtimes(lockPath, stale, stale); err != nil {
+		t.Fatalf("chtimes stale lock: %v", err)
+	}
+
+	if _, err := s.AppendEvent("job_5", "recovered", nil, now); err != nil {
+		t.Fatalf("append with stale lock should succeed, got %v", err)
 	}
 }

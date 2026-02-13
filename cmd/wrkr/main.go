@@ -52,6 +52,14 @@ func run(args []string, stdout, stderr io.Writer, now func() time.Time) int {
 	switch filtered[0] {
 	case "status":
 		return runStatus(filtered[1:], jsonMode, stdout, stderr, now)
+	case "checkpoint":
+		return runCheckpoint(filtered[1:], jsonMode, stdout, stderr, now)
+	case "approve":
+		return runApprove(filtered[1:], jsonMode, stdout, stderr, now)
+	case "resume":
+		return runResume(filtered[1:], jsonMode, stdout, stderr, now)
+	case "budget":
+		return runBudget(filtered[1:], jsonMode, stdout, stderr, now)
 	}
 
 	return printError(

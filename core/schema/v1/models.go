@@ -150,10 +150,13 @@ type LeaseInfo struct {
 
 type StatusResponse struct {
 	Envelope
-	JobID   string     `json:"job_id"`
-	Status  string     `json:"status"`
-	Summary string     `json:"summary"`
-	Lease   *LeaseInfo `json:"lease,omitempty"`
+	JobID              string     `json:"job_id"`
+	Status             string     `json:"status"`
+	Summary            string     `json:"summary"`
+	Lease              *LeaseInfo `json:"lease,omitempty"`
+	ReasonCodes        []string   `json:"reason_codes,omitempty"`
+	EnvironmentHash    string     `json:"environment_hash,omitempty"`
+	EnvironmentRuleSet []string   `json:"environment_rules,omitempty"`
 }
 
 type WorkItemPayload struct {

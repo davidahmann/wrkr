@@ -2,6 +2,7 @@ package runner
 
 import (
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -125,5 +126,124 @@ func TestLeaseConflictAndExpiryClaim(t *testing.T) {
 	}
 	if state.Lease == nil || state.Lease.WorkerID != "worker-b" {
 		t.Fatalf("expected worker-b lease after expiry, got %+v", state.Lease)
+	}
+}
+
+func TestConcurrentStatusMutationsRevalidateAfterCASConflict(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 2, 13, 10, 0, 0, 0, time.UTC)
+	r := testRunner(t, now)
+
+	if _, err := r.InitJob("job_4"); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	if _, err := r.ChangeStatus("job_4", queue.StatusRunning); err != nil {
+		t.Fatalf("change status to running: %v", err)
+	}
+
+	start := make(chan struct{})
+	type result struct {
+		err error
+	}
+	results := make(chan result, 2)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		<-start
+		_, err := r.ChangeStatus("job_4", queue.StatusPaused)
+		results <- result{err: err}
+	}()
+	go func() {
+		defer wg.Done()
+		<-start
+		_, err := r.ChangeStatus("job_4", queue.StatusCompleted)
+		results <- result{err: err}
+	}()
+
+	close(start)
+	wg.Wait()
+	close(results)
+
+	successes := 0
+	invalidTransitions := 0
+	for res := range results {
+		if res.err == nil {
+			successes++
+			continue
+		}
+		var werr wrkrerrors.WrkrError
+		if !errors.As(res.err, &werr) {
+			t.Fatalf("expected WrkrError, got %T (%v)", res.err, res.err)
+		}
+		if werr.Code == wrkrerrors.EInvalidStateTransition {
+			invalidTransitions++
+		} else {
+			t.Fatalf("expected E_INVALID_STATE_TRANSITION, got %s (%v)", werr.Code, res.err)
+		}
+	}
+
+	if successes != 1 || invalidTransitions != 1 {
+		t.Fatalf("expected one success and one invalid transition, got success=%d invalid=%d", successes, invalidTransitions)
+	}
+}
+
+func TestConcurrentLeaseAcquireReturnsSingleWinner(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 2, 13, 10, 0, 0, 0, time.UTC)
+	r := testRunner(t, now)
+
+	if _, err := r.InitJob("job_5"); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	start := make(chan struct{})
+	type result struct {
+		err error
+	}
+	results := make(chan result, 2)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		<-start
+		_, err := r.AcquireLease("job_5", "worker-a", "lease-a")
+		results <- result{err: err}
+	}()
+	go func() {
+		defer wg.Done()
+		<-start
+		_, err := r.AcquireLease("job_5", "worker-b", "lease-b")
+		results <- result{err: err}
+	}()
+
+	close(start)
+	wg.Wait()
+	close(results)
+
+	successes := 0
+	conflicts := 0
+	for res := range results {
+		if res.err == nil {
+			successes++
+			continue
+		}
+		var werr wrkrerrors.WrkrError
+		if !errors.As(res.err, &werr) {
+			t.Fatalf("expected WrkrError, got %T (%v)", res.err, res.err)
+		}
+		if werr.Code == wrkrerrors.ELeaseConflict {
+			conflicts++
+		} else {
+			t.Fatalf("expected E_LEASE_CONFLICT, got %s (%v)", werr.Code, res.err)
+		}
+	}
+
+	if successes != 1 || conflicts != 1 {
+		t.Fatalf("expected one success and one conflict, got success=%d conflicts=%d", successes, conflicts)
 	}
 }

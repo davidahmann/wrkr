@@ -21,6 +21,15 @@
     "job_id": { "type": "string", "minLength": 1 },
     "status": { "type": "string", "minLength": 1 },
     "summary": { "type": "string", "maxLength": 2000 },
+    "reason_codes": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "environment_hash": { "type": "string", "minLength": 1 },
+    "environment_rules": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
     "lease": {
       "type": "object",
       "additionalProperties": false,
