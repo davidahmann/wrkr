@@ -90,6 +90,8 @@ func run(args []string, stdout, stderr io.Writer, now func() time.Time) int {
 		return runServe(filtered[1:], jsonMode, stdout, stderr, now)
 	case "doctor":
 		return runDoctor(filtered[1:], jsonMode, stdout, stderr, now)
+	case "store":
+		return runStore(filtered[1:], jsonMode, stdout, stderr, now)
 	case "help":
 		return runHelp(stdout)
 	}

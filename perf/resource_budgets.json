@@ -1,0 +1,9 @@
+{
+  "schema_version": "v1",
+  "budgets": {
+    "wrkr_binary_max_bytes": 35000000,
+    "demo_jobpack_max_bytes": 5000000,
+    "demo_store_job_max_bytes": 5000000,
+    "demo_reports_dir_max_bytes": 5000000
+  }
+}

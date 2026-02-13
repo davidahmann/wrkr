@@ -2,21 +2,9 @@ name: ticket-footer-conformance
 
 on:
   pull_request:
-    paths:
-      - "cmd/wrkr/**"
-      - "core/pack/**"
-      - "docs/contracts/ticket_footer_conformance.md"
-      - "scripts/test_ticket_footer_conformance.sh"
-      - ".github/workflows/ticket-footer-conformance.yml"
   push:
     branches:
       - master
-    paths:
-      - "cmd/wrkr/**"
-      - "core/pack/**"
-      - "docs/contracts/ticket_footer_conformance.md"
-      - "scripts/test_ticket_footer_conformance.sh"
-      - ".github/workflows/ticket-footer-conformance.yml"
   workflow_dispatch:
 
 permissions:

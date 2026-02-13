@@ -81,13 +81,20 @@ release-smoke:
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o ./bin/wrkr-darwin-arm64 ./cmd/wrkr
 
 test-runtime-slo:
-	@echo "[wrkr] test-runtime-slo placeholder (Epic >0)"
+	python3 ./scripts/check_command_budgets.py --budgets ./perf/runtime_slo_budgets.json
+	python3 ./scripts/check_resource_budgets.py --budgets ./perf/resource_budgets.json
 
 test-hardening-acceptance:
-	@echo "[wrkr] test-hardening-acceptance placeholder (Epic >0)"
+	./scripts/test_chaos_store.sh
+	./scripts/test_chaos_runner.sh
+	./scripts/test_chaos_serve.sh
+	./scripts/test_session_soak.sh 5
 
 test-v1-acceptance:
-	@echo "[wrkr] test-v1-acceptance placeholder (Epic >0)"
+	$(MAKE) test-contracts
+	$(MAKE) test-acceptance
+	$(MAKE) test-conformance
+	$(MAKE) test-runtime-slo
 
 test-adoption:
 	@echo "[wrkr] test-adoption placeholder (Epic >0)"

@@ -1,48 +1,68 @@
 package doctor
 
 import (
+	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/davidahmann/wrkr/core/fsx"
 	"github.com/davidahmann/wrkr/core/out"
 	"github.com/davidahmann/wrkr/core/schema/validate"
 	"github.com/davidahmann/wrkr/core/store"
 )
 
 type CheckResult struct {
-	Name    string `json:"name"`
-	OK      bool   `json:"ok"`
-	Details string `json:"details,omitempty"`
+	Name        string `json:"name"`
+	OK          bool   `json:"ok"`
+	Severity    string `json:"severity"`
+	Details     string `json:"details,omitempty"`
+	Remediation string `json:"remediation,omitempty"`
 }
 
 type Result struct {
 	CheckedAt time.Time     `json:"checked_at"`
+	Profile   string        `json:"profile"`
 	OK        bool          `json:"ok"`
 	Checks    []CheckResult `json:"checks"`
 }
 
+type Options struct {
+	Now                 func() time.Time
+	ProductionReadiness bool
+}
+
 func Run(now func() time.Time) (Result, error) {
+	return RunWithOptions(Options{Now: now})
+}
+
+func RunWithOptions(opts Options) (Result, error) {
+	now := opts.Now
 	if now == nil {
 		now = time.Now
 	}
-	results := make([]CheckResult, 0, 4)
+
+	profile := "default"
+	if opts.ProductionReadiness {
+		profile = "production-readiness"
+	}
+	results := make([]CheckResult, 0, 10)
 
 	s, err := store.New("")
 	if err != nil {
-		return Result{}, err
+		results = append(results, failCritical("store_root", err.Error(), "Ensure HOME is writable and ~/.wrkr can be created."))
+	} else {
+		results = append(results, pass("store_root", s.Root()))
 	}
-	results = append(results, CheckResult{
-		Name:    "store_root",
-		OK:      true,
-		Details: s.Root(),
-	})
 
 	layout := out.NewLayout("")
 	if err := layout.Ensure(); err != nil {
-		results = append(results, CheckResult{Name: "output_layout", OK: false, Details: err.Error()})
+		results = append(results, failCritical("output_layout", err.Error(), "Ensure current workspace is writable or pass --out-dir for command-specific output."))
 	} else {
-		results = append(results, CheckResult{Name: "output_layout", OK: true, Details: layout.Root()})
+		results = append(results, pass("output_layout", layout.Root()))
 	}
 
 	missing := 0
@@ -51,28 +71,33 @@ func Run(now func() time.Time) (Result, error) {
 			missing++
 		}
 	}
-	results = append(results, CheckResult{
-		Name:    "schemas",
-		OK:      missing == 0,
-		Details: "missing=" + itoa(missing),
-	})
+	if missing == 0 {
+		results = append(results, pass("schemas", "missing=0"))
+	} else {
+		results = append(results, failCritical("schemas", "missing="+itoa(missing), "Restore missing files under ./schemas/v1 and rerun."))
+	}
 
 	hookPath := filepath.Clean(".githooks/pre-push")
 	if info, err := os.Stat(hookPath); err == nil && !info.IsDir() {
-		results = append(results, CheckResult{Name: "git_hook_pre_push", OK: true, Details: hookPath})
+		results = append(results, pass("git_hook_pre_push", hookPath))
 	} else {
-		results = append(results, CheckResult{Name: "git_hook_pre_push", OK: false, Details: hookPath})
+		results = append(results, failWarning("git_hook_pre_push", hookPath, "Run `make hooks` to install repository hooks."))
+	}
+
+	if opts.ProductionReadiness {
+		results = append(results, productionReadinessChecks(now)...)
 	}
 
 	ok := true
 	for _, check := range results {
-		if !check.OK {
+		if !check.OK && check.Severity == "critical" {
 			ok = false
 			break
 		}
 	}
 	return Result{
 		CheckedAt: now().UTC(),
+		Profile:   profile,
 		OK:        ok,
 		Checks:    results,
 	}, nil
@@ -91,4 +116,183 @@ func itoa(v int) string {
 		v /= 10
 	}
 	return string(digits)
+}
+
+func pass(name, details string) CheckResult {
+	return CheckResult{Name: name, OK: true, Severity: "critical", Details: details}
+}
+
+func failCritical(name, details, remediation string) CheckResult {
+	return CheckResult{
+		Name:        name,
+		OK:          false,
+		Severity:    "critical",
+		Details:     details,
+		Remediation: remediation,
+	}
+}
+
+func failWarning(name, details, remediation string) CheckResult {
+	return CheckResult{
+		Name:        name,
+		OK:          false,
+		Severity:    "warning",
+		Details:     details,
+		Remediation: remediation,
+	}
+}
+
+func productionReadinessChecks(now func() time.Time) []CheckResult {
+	results := make([]CheckResult, 0, 6)
+
+	profile := strings.ToLower(strings.TrimSpace(os.Getenv("WRKR_PROFILE")))
+	if profile == "strict" {
+		results = append(results, pass("strict_config_profile", "WRKR_PROFILE=strict"))
+	} else {
+		results = append(results, failCritical(
+			"strict_config_profile",
+			fmt.Sprintf("WRKR_PROFILE=%q", profile),
+			"Set WRKR_PROFILE=strict for production workloads.",
+		))
+	}
+
+	signingMode := strings.ToLower(strings.TrimSpace(os.Getenv("WRKR_SIGNING_MODE")))
+	if signingMode == "ed25519" {
+		results = append(results, pass("signing_mode", "WRKR_SIGNING_MODE=ed25519"))
+	} else {
+		results = append(results, failCritical(
+			"signing_mode",
+			fmt.Sprintf("WRKR_SIGNING_MODE=%q", signingMode),
+			"Set WRKR_SIGNING_MODE=ed25519.",
+		))
+	}
+
+	keySource := strings.ToLower(strings.TrimSpace(os.Getenv("WRKR_SIGNING_KEY_SOURCE")))
+	switch keySource {
+	case "env", "kms":
+		results = append(results, pass("signing_key_source", "WRKR_SIGNING_KEY_SOURCE="+keySource))
+	case "file":
+		keyPath := strings.TrimSpace(os.Getenv("WRKR_SIGNING_KEY_PATH"))
+		info, err := os.Stat(keyPath)
+		if keyPath == "" || err != nil || info.IsDir() {
+			results = append(results, failCritical(
+				"signing_key_source",
+				fmt.Sprintf("WRKR_SIGNING_KEY_SOURCE=file WRKR_SIGNING_KEY_PATH=%q", keyPath),
+				"Set WRKR_SIGNING_KEY_PATH to an existing private key file.",
+			))
+		} else {
+			results = append(results, pass("signing_key_source", "WRKR_SIGNING_KEY_SOURCE=file"))
+		}
+	default:
+		results = append(results, failCritical(
+			"signing_key_source",
+			fmt.Sprintf("WRKR_SIGNING_KEY_SOURCE=%q", keySource),
+			"Set WRKR_SIGNING_KEY_SOURCE to one of: file, env, kms.",
+		))
+	}
+
+	if err := checkStoreLockHealth(now); err != nil {
+		results = append(results, failCritical("store_lock_health", err.Error(), "Ensure ~/.wrkr/jobs is writable and no stale append lock blocks claims."))
+	} else {
+		results = append(results, pass("store_lock_health", "lock acquire/release successful"))
+	}
+
+	retentionDays, retentionErr := parsePositiveIntFromEnv("WRKR_RETENTION_DAYS")
+	outputRetentionDays, outputRetentionErr := parsePositiveIntFromEnv("WRKR_OUTPUT_RETENTION_DAYS")
+	if retentionErr != nil || outputRetentionErr != nil {
+		details := "WRKR_RETENTION_DAYS and WRKR_OUTPUT_RETENTION_DAYS must be positive integers"
+		if retentionErr != nil {
+			details = retentionErr.Error()
+		} else if outputRetentionErr != nil {
+			details = outputRetentionErr.Error()
+		}
+		results = append(results, failCritical(
+			"retention_settings",
+			details,
+			"Set retention env vars and automate `wrkr store prune --dry-run` in CI/nightly before enabling deletion.",
+		))
+	} else {
+		results = append(results, pass(
+			"retention_settings",
+			fmt.Sprintf("WRKR_RETENTION_DAYS=%d WRKR_OUTPUT_RETENTION_DAYS=%d", retentionDays, outputRetentionDays),
+		))
+	}
+
+	if unsafe := strings.TrimSpace(os.Getenv("WRKR_ALLOW_UNSAFE")); unsafe == "1" || strings.EqualFold(unsafe, "true") {
+		results = append(results, failCritical(
+			"unsafe_defaults",
+			"WRKR_ALLOW_UNSAFE is enabled",
+			"Unset WRKR_ALLOW_UNSAFE for production environments.",
+		))
+	} else if err := validateServeHardeningEnv(); err != nil {
+		results = append(results, failCritical("unsafe_defaults", err.Error(), "For non-loopback serve, set WRKR_SERVE_AUTH_TOKEN and WRKR_SERVE_MAX_BODY_BYTES."))
+	} else {
+		results = append(results, pass("unsafe_defaults", "production-safe defaults confirmed"))
+	}
+
+	return results
+}
+
+func parsePositiveIntFromEnv(key string) (int, error) {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return 0, fmt.Errorf("%s is unset", key)
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return 0, fmt.Errorf("%s=%q must be a positive integer", key, raw)
+	}
+	return n, nil
+}
+
+func checkStoreLockHealth(now func() time.Time) error {
+	s, err := store.New("")
+	if err != nil {
+		return err
+	}
+
+	probeJob := "_doctor_probe"
+	if err := s.EnsureJob(probeJob); err != nil {
+		return err
+	}
+	lockPath := filepath.Join(s.Root(), "jobs", probeJob, "append.lock")
+	lock, err := fsx.AcquireLockWithOptions(
+		lockPath,
+		fmt.Sprintf("pid=%d;ts=%d", os.Getpid(), now().UTC().UnixNano()),
+		fsx.LockOptions{StaleAfter: 2 * time.Minute, Now: now},
+	)
+	if err != nil {
+		return err
+	}
+	return lock.Release()
+}
+
+func validateServeHardeningEnv() error {
+	listen := strings.TrimSpace(os.Getenv("WRKR_SERVE_LISTEN"))
+	if listen == "" {
+		return nil
+	}
+	if isLoopbackListen(listen) {
+		return nil
+	}
+	if strings.TrimSpace(os.Getenv("WRKR_SERVE_AUTH_TOKEN")) == "" {
+		return fmt.Errorf("non-loopback WRKR_SERVE_LISTEN requires WRKR_SERVE_AUTH_TOKEN")
+	}
+	if strings.TrimSpace(os.Getenv("WRKR_SERVE_MAX_BODY_BYTES")) == "" {
+		return fmt.Errorf("non-loopback WRKR_SERVE_LISTEN requires WRKR_SERVE_MAX_BODY_BYTES")
+	}
+	return nil
+}
+
+func isLoopbackListen(addr string) bool {
+	host := strings.TrimSpace(addr)
+	if h, _, err := net.SplitHostPort(addr); err == nil {
+		host = h
+	}
+	host = strings.Trim(host, "[]")
+	if host == "" || strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }

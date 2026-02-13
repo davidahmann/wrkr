@@ -2,37 +2,9 @@ name: ci
 
 on:
   pull_request:
-    paths:
-      - "cmd/**"
-      - "core/**"
-      - "docs/**"
-      - "docs-site/**"
-      - "examples/**"
-      - "internal/**"
-      - "schemas/**"
-      - "scripts/**"
-      - "sdk/**"
-      - "go.mod"
-      - "go.sum"
-      - "Makefile"
-      - ".github/workflows/**"
   push:
     branches:
       - master
-    paths:
-      - "cmd/**"
-      - "core/**"
-      - "docs/**"
-      - "docs-site/**"
-      - "examples/**"
-      - "internal/**"
-      - "schemas/**"
-      - "scripts/**"
-      - "sdk/**"
-      - "go.mod"
-      - "go.sum"
-      - "Makefile"
-      - ".github/workflows/**"
   workflow_dispatch:
 
 permissions:
