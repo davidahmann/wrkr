@@ -1,7 +1,43 @@
 # Release Hardening Checklist
 
-- [ ] `make lint-fast test-fast sast-fast` is green
-- [ ] contract docs are current with implementation
-- [ ] `wrkr demo`, `wrkr submit`, `wrkr accept run`, `wrkr export`, `wrkr verify` smoke tests pass
-- [ ] serve hardening behavior verified (loopback default, non-loopback guardrails)
-- [ ] release notes include breaking/non-breaking contract changes
+This checklist is mandatory for every `v*` release.
+
+## 1. Pre-Tag Gates
+
+- [ ] `make lint-fast test-fast sast-fast` is green.
+- [ ] `make test-v1-acceptance` is green.
+- [ ] `make test-hardening-acceptance` is green.
+- [ ] `make install-smoke release-smoke` is green.
+- [ ] `make docs-site-build` is green.
+
+## 2. Tag and Workflow Execution
+
+- [ ] Release tag is annotated (`git tag -a vX.Y.Z -m "vX.Y.Z"`).
+- [ ] Tag is pushed from `master` only.
+- [ ] `.github/workflows/release.yml` completed successfully.
+
+## 3. Integrity Artifacts (Required)
+
+- [ ] Release archives exist for darwin/linux/windows x amd64/arm64.
+- [ ] `dist/checksums.txt` exists and validates all archives.
+- [ ] `dist/wrkr.sbom.spdx.json` exists.
+- [ ] `dist/wrkr.vuln.sarif` exists.
+- [ ] `dist/checksums.txt.sig` and `dist/checksums.txt.pem` exist.
+- [ ] Provenance attestation step succeeded.
+- [ ] `scripts/verify_release_assets.sh` passed in workflow logs.
+
+## 4. Homebrew (Mirrored Optional Path)
+
+- [ ] `scripts/render_homebrew_formula.sh` generated `wrkr.rb` from the release checksums.
+- [ ] If publishing tap: `scripts/publish_homebrew_tap.sh --apply` succeeded with guarded token.
+
+## 5. Release Notes and Approval Record
+
+- [ ] GitHub release body uses `docs/launch/github_release_template.md`.
+- [ ] Contract-impact section is completed (`none` is explicit if no changes).
+- [ ] Known limitations and rollback instructions are included.
+
+## 6. Single-Admin Operability
+
+- [ ] No step required two-admin approval.
+- [ ] Any skipped optional publish paths are documented in release notes.
