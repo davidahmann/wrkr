@@ -169,25 +169,25 @@ jobs:
             --repo-name "${{ github.event.repository.name }}" \
             --output ./dist/wrkr.rb
 
-      - name: Validate Homebrew publish input
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.publish_homebrew_tap == 'true' }}
-        env:
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      - name: Validate changelog presence
         run: |
-          if [[ -z "${HOMEBREW_TAP_TOKEN}" ]]; then
-            echo "publish_homebrew_tap=true requires HOMEBREW_TAP_TOKEN"
-            exit 1
-          fi
+          test -s CHANGELOG.md
+          grep -q '^## ' CHANGELOG.md
 
       - name: Publish Homebrew formula
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.publish_homebrew_tap == 'true' }}
+        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_homebrew_tap == 'true') }}
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
+          if [[ -z "${HOMEBREW_TAP_TOKEN:-}" ]]; then
+            echo "HOMEBREW_TAP_TOKEN is not set; skipping Homebrew tap publish."
+            exit 0
+          fi
           ./scripts/publish_homebrew_tap.sh \
             --formula ./dist/wrkr.rb \
-            --tap-repo "${{ github.repository_owner }}/homebrew-wrkr" \
-            --tap-branch master \
+            --tap-repo "${{ github.repository_owner }}/homebrew-tap" \
+            --tap-branch main \
             --apply
 
       - name: Upload release integrity artifacts

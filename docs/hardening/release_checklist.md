@@ -29,15 +29,21 @@ This checklist is mandatory for every `v*` release.
 ## 4. Homebrew (Mirrored Optional Path)
 
 - [ ] `scripts/render_homebrew_formula.sh` generated `wrkr.rb` from the release checksums.
-- [ ] If publishing tap: `scripts/publish_homebrew_tap.sh --apply` succeeded with guarded token.
+- [ ] If publishing tap: formula published to `davidahmann/homebrew-tap` (`davidahmann/tap`) on `main`.
+- [ ] If token is missing, workflow explicitly logs Homebrew publish skip.
 
-## 5. Release Notes and Approval Record
+## 5. Changelog Contract
+
+- [ ] `CHANGELOG.md` exists and is non-empty.
+- [ ] Release workflow changelog validation step passed.
+
+## 6. Release Notes and Approval Record
 
 - [ ] GitHub release body uses `docs/launch/github_release_template.md`.
 - [ ] Contract-impact section is completed (`none` is explicit if no changes).
 - [ ] Known limitations and rollback instructions are included.
 
-## 6. Single-Admin Operability
+## 7. Single-Admin Operability
 
 - [ ] No step required two-admin approval.
 - [ ] Any skipped optional publish paths are documented in release notes.

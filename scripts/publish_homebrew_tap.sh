@@ -2,8 +2,8 @@
 set -euo pipefail
 
 formula_file=""
-tap_repo="davidahmann/homebrew-wrkr"
-tap_branch="master"
+tap_repo="davidahmann/homebrew-tap"
+tap_branch="main"
 apply=0
 
 usage() {

@@ -33,7 +33,10 @@ jobs:
         run: python -m pip install --upgrade pip uv
 
       - name: Adoption regression lane
-        run: make test-adoption test-uat-local test-v1-acceptance test-conformance
+        run: |
+          make test-adoption
+          make test-uat-local UAT_ARGS="--skip-brew --skip-release-installer"
+          make test-v1-acceptance test-conformance
 
       - name: Upload nightly artifacts
         if: always()

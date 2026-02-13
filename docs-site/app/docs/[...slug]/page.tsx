@@ -1,46 +1,61 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { loadAllPages, loadPageBySlug } from '../../../src/lib/content'
-import { navigation } from '../../../src/lib/navigation'
+import type { Metadata } from 'next'
+import MarkdownRenderer from '../../../src/components/MarkdownRenderer'
+import { getAllDocSlugs, getDocContent } from '../../../src/lib/docs'
+import { markdownToHtml } from '../../../src/lib/markdown'
+import { canonicalUrl } from '../../../src/lib/site'
 
-export function generateStaticParams() {
-  return loadAllPages().map((page) => ({ slug: page.slug }))
+interface PageProps {
+  params: Promise<{ slug: string[] }>
 }
 
-export default async function DocPage({ params }: { params: Promise<{ slug: string[] }> }) {
-  const { slug } = await params
-  const page = loadPageBySlug(slug)
-  if (!page) {
+export function generateStaticParams() {
+  return getAllDocSlugs().map((slug) => ({
+    slug: slug.split('/'),
+  }))
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const resolvedParams = await params
+  const slugPath = resolvedParams.slug.join('/').toLowerCase()
+  const doc = getDocContent(slugPath)
+
+  if (!doc) {
+    return {
+      title: 'Not Found | Wrkr Docs',
+      description: 'Requested documentation page was not found.',
+    }
+  }
+
+  const canonical = canonicalUrl(`/docs/${slugPath}/`)
+
+  return {
+    title: `${doc.title} | Wrkr Docs`,
+    description: doc.description || `Wrkr documentation page: ${doc.title}`,
+    alternates: { canonical },
+    openGraph: {
+      title: `${doc.title} | Wrkr Docs`,
+      description: doc.description || `Wrkr documentation page: ${doc.title}`,
+      url: canonical,
+      type: 'article',
+    },
+  }
+}
+
+export default async function DocPage({ params }: PageProps) {
+  const resolvedParams = await params
+  const slugPath = resolvedParams.slug.join('/').toLowerCase()
+  const doc = getDocContent(slugPath)
+  if (!doc) {
     notFound()
   }
 
+  const html = markdownToHtml(doc.content, slugPath)
+
   return (
-    <main className="layout">
-      <header className="header">
-        <h1>Wrkr Docs</h1>
-        <p className="meta">Source: {page.sourcePath}</p>
-      </header>
-      <div className="shell">
-        <aside className="nav">
-          {navigation.map((section) => (
-            <div key={section.title}>
-              <h3>{section.title}</h3>
-              <ul>
-                {section.items.map((item) => (
-                  <li key={item.href}>
-                    <Link href={item.href}>{item.label}</Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </aside>
-        <article className="content">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{page.body}</ReactMarkdown>
-        </article>
-      </div>
-    </main>
+    <div>
+      <h1 className="doc-title">{doc.title}</h1>
+      <MarkdownRenderer html={html} />
+    </div>
   )
 }

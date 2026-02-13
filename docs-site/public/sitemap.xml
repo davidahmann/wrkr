@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://davidahmann.github.io/wrkr/</loc></url>
+  <url><loc>https://davidahmann.github.io/wrkr/docs/</loc></url>
+  <url><loc>https://davidahmann.github.io/wrkr/docs/install/</loc></url>
+  <url><loc>https://davidahmann.github.io/wrkr/docs/integration_checklist/</loc></url>
+  <url><loc>https://davidahmann.github.io/wrkr/docs/hardening/production_readiness/</loc></url>
+  <url><loc>https://davidahmann.github.io/wrkr/docs/contracts/primitive_contract/</loc></url>
+  <url><loc>https://davidahmann.github.io/wrkr/docs/slo/runtime_slo/</loc></url>
+  <url><loc>https://davidahmann.github.io/wrkr/docs/security/</loc></url>
+  <url><loc>https://davidahmann.github.io/wrkr/docs/contributing/</loc></url>
+  <url><loc>https://davidahmann.github.io/wrkr/llms/</loc></url>
+  <url><loc>https://davidahmann.github.io/wrkr/llm/faq.md</loc></url>
+</urlset>
