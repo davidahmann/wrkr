@@ -41,7 +41,7 @@ license-check:
 	./scripts/license_check.sh
 
 test-e2e:
-	@echo "[wrkr] test-e2e placeholder (Epic >0)"
+	go test ./internal/integration/... -count=1
 
 test-acceptance:
 	@echo "[wrkr] test-acceptance placeholder (Epic >0)"

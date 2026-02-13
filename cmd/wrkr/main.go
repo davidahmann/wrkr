@@ -49,20 +49,19 @@ func run(args []string, stdout, stderr io.Writer, now func() time.Time) int {
 		return 0
 	}
 
-	err := wrkrerrors.New(
-		wrkrerrors.EInvalidInputSchema,
-		fmt.Sprintf("unknown command %q", filtered[0]),
-		map[string]any{"command": filtered[0]},
-	)
-	if jsonMode {
-		out, marshalErr := wrkrerrors.MarshalEnvelope(err, version, now().UTC())
-		if marshalErr != nil {
-			fmt.Fprintf(stderr, "marshal error envelope: %v\n", marshalErr)
-			return 1
-		}
-		fmt.Fprintln(stderr, string(out))
-	} else {
-		fmt.Fprintf(stderr, "%v\n", err)
+	switch filtered[0] {
+	case "status":
+		return runStatus(filtered[1:], jsonMode, stdout, stderr, now)
 	}
-	return wrkrerrors.ExitCodeFor(wrkrerrors.EInvalidInputSchema)
+
+	return printError(
+		wrkrerrors.New(
+			wrkrerrors.EInvalidInputSchema,
+			fmt.Sprintf("unknown command %q", filtered[0]),
+			map[string]any{"command": filtered[0]},
+		),
+		jsonMode,
+		stderr,
+		now,
+	)
 }
