@@ -1,0 +1,28 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: detect-private-key
+  - repo: local
+    hooks:
+      - id: gofmt
+        name: gofmt
+        entry: bash -c 'files=$(git ls-files "*.go"); [ -z "$files" ] || gofmt -w $files'
+        language: system
+        pass_filenames: false
+      - id: make-lint-fast
+        name: make lint-fast
+        entry: make lint-fast
+        language: system
+        pass_filenames: false
+      - id: make-test-fast
+        name: make test-fast
+        entry: make test-fast
+        language: system
+        pass_filenames: false
