@@ -44,7 +44,7 @@ test-e2e:
 	go test ./internal/integration/... -count=1
 
 test-acceptance:
-	@echo "[wrkr] test-acceptance placeholder (Epic >0)"
+	go test ./core/accept/... ./core/report ./cmd/wrkr -run 'TestAccept|TestReport|TestBuildAndWriteGitHubSummary|TestRunWritesAcceptanceResult|TestRunFailureCode' -count=1
 
 test-contracts:
 	./scripts/test_contracts.sh

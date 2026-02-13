@@ -68,6 +68,10 @@ func run(args []string, stdout, stderr io.Writer, now func() time.Time) int {
 		return runJob(filtered[1:], jsonMode, stdout, stderr, now)
 	case "receipt":
 		return runReceipt(filtered[1:], jsonMode, stdout, stderr, now)
+	case "accept":
+		return runAccept(filtered[1:], jsonMode, stdout, stderr, now)
+	case "report":
+		return runReport(filtered[1:], jsonMode, stdout, stderr, now)
 	}
 
 	return printError(
