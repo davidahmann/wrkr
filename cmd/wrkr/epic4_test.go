@@ -62,7 +62,7 @@ func TestExportVerifyAndReceipt(t *testing.T) {
 
 	out.Reset()
 	errBuf.Reset()
-	code = run([]string{"receipt", "job_cli_export"}, &out, &errBuf, func() time.Time { return now })
+	code = run([]string{"receipt", "job_cli_export", "--out-dir", outDir}, &out, &errBuf, func() time.Time { return now })
 	if code != 0 {
 		t.Fatalf("receipt failed: %d %s", code, errBuf.String())
 	}
