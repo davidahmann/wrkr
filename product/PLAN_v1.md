@@ -24,6 +24,7 @@ This plan is written for top-to-bottom execution with minimal interpretation. Ev
 - `wrkr serve` is a local transport surface: loopback-only by default; non-loopback requires explicit auth token and request-size limits; no network listener by default.
 - GitHub-native summaries are deterministic markdown generated from jobpacks/checkpoints/acceptance results and are written under `./wrkr-out/reports/`.
 - "Wrkr-compatible" is a real, testable claim enforced by conformance + parity suites; it is release-blocking.
+- CI/CD governance must be single-admin operable; no release or protection step may require two-admin approval.
 - Major commands support `--json` and `--explain` with bounded summaries.
 - Coverage threshold is `>= 85%` for Go core/CLI and Python SDK, enforced in CI.
 - Documentation ownership mirrors Gait: `docs/contracts/*` are normative; `README.md` is onboarding only.
@@ -99,6 +100,7 @@ This plan is written for top-to-bottom execution with minimal interpretation. Ev
 |   |-- concepts/
 |   |-- contracts/
 |   |-- hardening/
+|   |-- security/
 |   |-- slo/
 |   |-- launch/
 |   |-- deployment/
@@ -132,6 +134,8 @@ v1 is complete only when all are true:
 - `wrkr bridge work-item` produces deterministic payloads (with `--dry-run`) from `blocked` and `decision-needed` checkpoints.
 - GitHub-native summaries are produced deterministically and the GitHub Actions kit publishes them via `GITHUB_STEP_SUMMARY`.
 - `wrkr serve` passes loopback-default hardening tests (auth required for non-loopback, request limits, no path traversal).
+- Local security checks (`make sast-fast`) and CI CodeQL are both wired and documented, with deterministic triage flow.
+- Required check policy and branch protection bootstrap are in place and manageable by a single admin account.
 - PR fast lane, mainline CI lane, and nightly deep lanes are implemented and green.
 - Docs map, contracts, architecture, and runbooks are complete and non-duplicative.
 - Release workflow emits signed multi-platform artifacts, checksums, SBOM, scan output, and provenance.
@@ -183,12 +187,14 @@ Tasks:
 
 Required targets:
 - `fmt`, `lint`, `lint-fast`, `test`, `test-fast`, `build`
+- `sast-fast`, `codeql-local`
+- `license-check`
 - `test-e2e`, `test-acceptance`, `test-contracts`, `test-conformance`, `test-runtime-slo`, `test-hardening-acceptance`
 - `test-v1-acceptance`, `test-adoption`, `test-uat-local`
 - `docs-site-install`, `docs-site-build`, `docs-site-lint`
 
 Acceptance criteria:
-- `make fmt && make lint-fast && make test-fast` succeeds on clean checkout.
+- `make fmt && make lint-fast && make test-fast && make sast-fast` succeeds on clean checkout.
 
 ### Story 0.4: Pre-commit and pre-push enforcement
 
@@ -196,6 +202,7 @@ Tasks:
 - Add `.pre-commit-config.yaml` with whitespace, secret, Go, Python, and site-stack checks.
 - Add `.githooks` and `make hooks` flow.
 - Enforce hook path and repository hygiene in lint checks.
+- Keep pre-push default lightweight (`lint-fast`, `test-fast`, `sast-fast`) for contributor ergonomics.
 
 Acceptance criteria:
 - `pre-commit run --all-files` passes.
@@ -933,15 +940,53 @@ Acceptance criteria:
 ### Story 8.5: Security scanning and code analysis
 
 Tasks:
-- Add CodeQL workflow.
+- Add a two-tier security scan model:
+  - `make sast-fast` for local/pre-push checks (`gosec`, `govulncheck`, secret scan)
+  - CI CodeQL for deep semantic analysis on PR, main, and nightly schedule
+- Add `make codeql-local` (wrapper script) for optional local deep scan parity with CI.
+- Upload SARIF artifacts in CI and document deterministic triage flow (new finding, baseline/suppression, owner action).
 - Run `gosec` and `govulncheck` in lint or dedicated jobs.
+- Add a lightweight license compliance check in CI (`make license-check`) suitable for OSS dependency hygiene.
 
 Repo paths:
 - `.github/workflows/codeql.yml`
 - `Makefile`
+- `scripts/run_codeql_local.sh`
+- `docs/security/codeql_triage.md`
+- `docs/security/license_policy.md`
 
 Acceptance criteria:
+- `sast-fast` runs locally with no cloud dependency and is pre-push friendly.
+- CodeQL findings and triage artifacts are visible in CI and reproducible locally via `make codeql-local`.
 - Critical scanner findings block release.
+
+### Story 8.6: Workflow governance and required-check policy (single-admin friendly)
+
+Tasks:
+- Define required check policy for PR merge and document it in one place:
+  - `pr-fast`
+  - `ci`
+  - contract/conformance checks
+  - CodeQL
+- Add a branch protection bootstrap script using `gh` CLI that a single admin can run idempotently (no two-admin assumptions).
+- Enforce least-privilege `permissions:` in all workflows and restrict write scopes to jobs that need them.
+- Pin third-party GitHub Actions by full commit SHA; add a lightweight update cadence doc and automation hook.
+- Add workflow concurrency controls (`cancel-in-progress`) for PR jobs to reduce queue waste.
+- Define cache strategy for Go/Python/docs-site jobs (stable keys + restore keys) and document cache busting rules.
+- Add merge queue guidance as optional: enabled only when contributor volume justifies it; not required for single-maintainer operation.
+
+Repo paths:
+- `.github/workflows/*.yml`
+- `.github/dependabot.yml`
+- `scripts/bootstrap_branch_protection.sh`
+- `docs/ci_required_checks.md`
+- `docs/ci_permissions_model.md`
+- `docs/ci_cache_strategy.md`
+
+Acceptance criteria:
+- Required checks are explicit and enforced without manual interpretation.
+- A single admin can bootstrap and maintain branch protection from CLI.
+- Workflow permissions and pinned actions are auditable and CI-reviewed.
 
 ---
 
@@ -1152,19 +1197,25 @@ Run in order:
 
 1. `make fmt`
 2. `make lint-fast`
-3. `make test-fast`
-4. `make lint`
-5. `make test`
-6. `make test-e2e`
-7. `make test-contracts`
-8. `make test-acceptance`
-9. `make test-conformance`
-10. `make test-v1-acceptance`
-11. `make test-runtime-slo`
-12. `make test-hardening-acceptance`
-13. `make test-adoption`
-14. `make docs-site-build`
-15. `make test-uat-local`
+3. `make sast-fast`
+4. `make test-fast`
+5. `make lint`
+6. `make license-check`
+7. `make test`
+8. `make test-e2e`
+9. `make test-contracts`
+10. `make test-acceptance`
+11. `make test-conformance`
+12. `make test-v1-acceptance`
+13. `make test-runtime-slo`
+14. `make test-hardening-acceptance`
+15. `make test-adoption`
+16. `make docs-site-build`
+17. `make test-uat-local`
+
+Optional deep local pass (before opening a high-risk PR):
+
+18. `make codeql-local`
 
 If any command fails, fix and rerun from failing step.
 
