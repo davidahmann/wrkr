@@ -16,6 +16,7 @@ A lane can claim "Wrkr-compatible" if it satisfies the core contract surfaces.
 - `scripts/test_wrkr_compatible_conformance.sh`
 - `scripts/test_github_summary_golden.sh`
 - `scripts/test_serve_hardening.sh`
+- `scripts/test_release_contracts.sh`
 - `docs/contracts/ticket_footer_conformance.md`
 - `docs/contracts/github_summary_conformance.md`
 - `docs/contracts/work_item_bridge_contract.md`
