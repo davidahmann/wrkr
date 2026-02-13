@@ -19,6 +19,7 @@ const (
 	EStoreCorrupt               Code = "E_STORE_CORRUPT"
 	EEnvFingerprintMismatch     Code = "E_ENV_FINGERPRINT_MISMATCH"
 	ELeaseConflict              Code = "E_LEASE_CONFLICT"
+	EInvalidStateTransition     Code = "E_INVALID_STATE_TRANSITION"
 	EInvalidInputSchema         Code = "E_INVALID_INPUT_SCHEMA"
 	EUnsafeOperation            Code = "E_UNSAFE_OPERATION"
 )

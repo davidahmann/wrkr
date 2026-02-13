@@ -19,6 +19,7 @@ func TestExitCodeMapping(t *testing.T) {
 		EInvalidInputSchema:         6,
 		EUnsafeOperation:            8,
 		EAdapterFail:                1,
+		EInvalidStateTransition:     1,
 	}
 
 	for code, expected := range cases {
