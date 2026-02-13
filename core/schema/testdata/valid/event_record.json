@@ -1,0 +1,14 @@
+{
+  "schema": "jobpack/event.schema.json",
+  "data": {
+    "schema_id": "wrkr.event",
+    "schema_version": "v1",
+    "created_at": "2026-02-13T10:00:00Z",
+    "producer_version": "dev",
+    "event_id": "evt_1",
+    "job_id": "job_1",
+    "type": "tool-call",
+    "executed": true,
+    "payload": {"tool": "rg"}
+  }
+}

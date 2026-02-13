@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wrkr.dev/schemas/v1/checkpoint/approval_record.schema.json",
+  "title": "Wrkr Approval Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "created_at",
+    "producer_version",
+    "job_id",
+    "checkpoint_id",
+    "reason",
+    "approved_by"
+  ],
+  "properties": {
+    "schema_id": { "const": "wrkr.approval_record" },
+    "schema_version": { "type": "string", "pattern": "^v1(\\.[0-9]+)?$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "producer_version": { "type": "string", "minLength": 1 },
+    "job_id": { "type": "string", "minLength": 1 },
+    "checkpoint_id": { "type": "string", "minLength": 1 },
+    "reason": { "type": "string", "minLength": 1 },
+    "approved_by": { "type": "string", "minLength": 1 }
+  }
+}

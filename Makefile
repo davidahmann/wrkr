@@ -47,7 +47,7 @@ test-acceptance:
 	@echo "[wrkr] test-acceptance placeholder (Epic >0)"
 
 test-contracts:
-	@echo "[wrkr] test-contracts placeholder (Epic >0)"
+	./scripts/test_contracts.sh
 
 test-conformance:
 	@echo "[wrkr] test-conformance placeholder (Epic >0)"

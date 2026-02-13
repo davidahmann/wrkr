@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wrkr.dev/schemas/v1/checkpoint/checkpoint.schema.json",
+  "title": "Wrkr Checkpoint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "created_at",
+    "producer_version",
+    "checkpoint_id",
+    "job_id",
+    "type",
+    "summary",
+    "status",
+    "budget_state",
+    "artifacts_delta",
+    "reason_codes"
+  ],
+  "properties": {
+    "schema_id": { "const": "wrkr.checkpoint" },
+    "schema_version": { "type": "string", "pattern": "^v1(\\.[0-9]+)?$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "producer_version": { "type": "string", "minLength": 1 },
+    "checkpoint_id": { "type": "string", "minLength": 1 },
+    "job_id": { "type": "string", "minLength": 1 },
+    "type": {
+      "type": "string",
+      "enum": ["plan", "progress", "decision-needed", "blocked", "completed"]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "queued",
+        "running",
+        "paused",
+        "blocked_decision",
+        "blocked_budget",
+        "blocked_error",
+        "completed",
+        "canceled"
+      ]
+    },
+    "budget_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["wall_time_seconds", "retry_count", "step_count", "tool_call_count"],
+      "properties": {
+        "wall_time_seconds": { "type": "integer", "minimum": 0 },
+        "retry_count": { "type": "integer", "minimum": 0 },
+        "step_count": { "type": "integer", "minimum": 0 },
+        "tool_call_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "artifacts_delta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["added", "changed", "removed"],
+      "properties": {
+        "added": { "type": "array", "items": { "type": "string" } },
+        "changed": { "type": "array", "items": { "type": "string" } },
+        "removed": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "required_action": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string" },
+        "instructions": { "type": "string" }
+      }
+    },
+    "reason_codes": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

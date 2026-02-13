@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wrkr.dev/schemas/v1/status/status_response.schema.json",
+  "title": "Wrkr Status Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "created_at",
+    "producer_version",
+    "job_id",
+    "status",
+    "summary"
+  ],
+  "properties": {
+    "schema_id": { "const": "wrkr.status_response" },
+    "schema_version": { "type": "string", "pattern": "^v1(\\.[0-9]+)?$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "producer_version": { "type": "string", "minLength": 1 },
+    "job_id": { "type": "string", "minLength": 1 },
+    "status": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string", "maxLength": 2000 },
+    "lease": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["worker_id", "lease_id", "expires_at"],
+      "properties": {
+        "worker_id": { "type": "string", "minLength": 1 },
+        "lease_id": { "type": "string", "minLength": 1 },
+        "expires_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

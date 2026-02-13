@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wrkr.dev/schemas/v1/serve/error_envelope.schema.json",
+  "title": "Wrkr Serve Error Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "created_at",
+    "producer_version",
+    "code",
+    "message",
+    "exit_code"
+  ],
+  "properties": {
+    "schema_id": { "const": "wrkr.error_envelope" },
+    "schema_version": { "type": "string", "pattern": "^v1(\\.[0-9]+)?$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "producer_version": { "type": "string", "minLength": 1 },
+    "code": { "type": "string", "minLength": 1 },
+    "message": { "type": "string", "minLength": 1 },
+    "exit_code": { "type": "integer", "minimum": 1 },
+    "details": { "type": "object", "additionalProperties": true }
+  }
+}
