@@ -38,10 +38,11 @@ func TestExportVerifyAndReceipt(t *testing.T) {
 	t.Setenv("HOME", home)
 	now := time.Date(2026, 2, 13, 19, 0, 0, 0, time.UTC)
 	setupEpic4Job(t, "job_cli_export", now)
+	outDir := t.TempDir()
 
 	var out bytes.Buffer
 	var errBuf bytes.Buffer
-	code := run([]string{"export", "job_cli_export", "--json"}, &out, &errBuf, func() time.Time { return now })
+	code := run([]string{"export", "job_cli_export", "--out-dir", outDir, "--json"}, &out, &errBuf, func() time.Time { return now })
 	if code != 0 {
 		t.Fatalf("export failed: %d %s", code, errBuf.String())
 	}
@@ -51,7 +52,7 @@ func TestExportVerifyAndReceipt(t *testing.T) {
 
 	out.Reset()
 	errBuf.Reset()
-	code = run([]string{"verify", "job_cli_export", "--json"}, &out, &errBuf, func() time.Time { return now })
+	code = run([]string{"verify", "job_cli_export", "--out-dir", outDir, "--json"}, &out, &errBuf, func() time.Time { return now })
 	if code != 0 {
 		t.Fatalf("verify failed: %d %s", code, errBuf.String())
 	}
@@ -61,7 +62,7 @@ func TestExportVerifyAndReceipt(t *testing.T) {
 
 	out.Reset()
 	errBuf.Reset()
-	code = run([]string{"receipt", "job_cli_export"}, &out, &errBuf, func() time.Time { return now })
+	code = run([]string{"receipt", "job_cli_export", "--out-dir", outDir}, &out, &errBuf, func() time.Time { return now })
 	if code != 0 {
 		t.Fatalf("receipt failed: %d %s", code, errBuf.String())
 	}
@@ -77,6 +78,7 @@ func TestJobInspectAndDiff(t *testing.T) {
 	now := time.Date(2026, 2, 13, 19, 0, 0, 0, time.UTC)
 	setupEpic4Job(t, "job_cli_diff_a", now)
 	setupEpic4Job(t, "job_cli_diff_b", now)
+	outDir := t.TempDir()
 
 	var out bytes.Buffer
 	var errBuf bytes.Buffer
@@ -87,7 +89,7 @@ func TestJobInspectAndDiff(t *testing.T) {
 
 	out.Reset()
 	errBuf.Reset()
-	code = run([]string{"export", "job_cli_diff_a", "--json"}, &out, &errBuf, func() time.Time { return now })
+	code = run([]string{"export", "job_cli_diff_a", "--out-dir", outDir, "--json"}, &out, &errBuf, func() time.Time { return now })
 	if code != 0 {
 		t.Fatalf("export A failed: %d %s", code, errBuf.String())
 	}
@@ -95,7 +97,7 @@ func TestJobInspectAndDiff(t *testing.T) {
 
 	out.Reset()
 	errBuf.Reset()
-	code = run([]string{"export", "job_cli_diff_b", "--json"}, &out, &errBuf, func() time.Time { return now })
+	code = run([]string{"export", "job_cli_diff_b", "--out-dir", outDir, "--json"}, &out, &errBuf, func() time.Time { return now })
 	if code != 0 {
 		t.Fatalf("export B failed: %d %s", code, errBuf.String())
 	}
