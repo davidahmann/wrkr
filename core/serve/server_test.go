@@ -68,3 +68,29 @@ func TestPathTraversalRejected(t *testing.T) {
 		t.Fatalf("expected 400 for traversal, got %d", rec.Code)
 	}
 }
+
+func TestJobIDTraversalRejectedOnMutationEndpoints(t *testing.T) {
+	srv := New(Config{
+		Now:          func() time.Time { return time.Date(2026, 2, 14, 2, 40, 0, 0, time.UTC) },
+		MaxBodyBytes: 1024,
+	})
+
+	cases := []struct {
+		path string
+		body string
+	}{
+		{path: "/v1/jobs/..:export", body: `{}`},
+		{path: "/v1/jobs/..:verify", body: `{}`},
+		{path: "/v1/jobs/..:accept", body: `{"config_path":"accept.yaml"}`},
+		{path: "/v1/jobs/..:report-github", body: `{}`},
+	}
+
+	for _, tc := range cases {
+		req := httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(tc.body))
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 for %s, got %d", tc.path, rec.Code)
+		}
+	}
+}

@@ -63,9 +63,10 @@ func runServe(args []string, jsonMode bool, stdout, stderr io.Writer, now func()
 		}); err != nil {
 			return printError(err, jsonMode, stderr, now)
 		}
+		fmt.Fprintf(stderr, "wrkr serve listening on %s\n", validated.ListenAddr)
+	} else {
+		fmt.Fprintf(stdout, "wrkr serve listening on %s\n", validated.ListenAddr)
 	}
-
-	fmt.Fprintf(stdout, "wrkr serve listening on %s\n", validated.ListenAddr)
 	server := serve.New(validated)
 	if err := server.ListenAndServe(); err != nil {
 		return printError(err, jsonMode, stderr, now)

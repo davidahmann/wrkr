@@ -1,6 +1,7 @@
 package bridge
 
 import (
+	"bytes"
 	"os"
 	"testing"
 	"time"
@@ -64,5 +65,21 @@ func TestWriteWorkItemPayload(t *testing.T) {
 	}
 	if _, err := os.Stat(result.JSONPath); err != nil {
 		t.Fatalf("json output missing: %v", err)
+	}
+
+	resultB, err := WriteWorkItemPayload(payload, t.TempDir(), "github")
+	if err != nil {
+		t.Fatalf("WriteWorkItemPayload second: %v", err)
+	}
+	rawA, err := os.ReadFile(result.JSONPath)
+	if err != nil {
+		t.Fatalf("read json A: %v", err)
+	}
+	rawB, err := os.ReadFile(resultB.JSONPath)
+	if err != nil {
+		t.Fatalf("read json B: %v", err)
+	}
+	if !bytes.Equal(rawA, rawB) {
+		t.Fatalf("expected deterministic payload bytes, got different outputs:\nA=%s\nB=%s", string(rawA), string(rawB))
 	}
 }

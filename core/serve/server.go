@@ -273,6 +273,10 @@ func (s *Server) handleApprove(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	jobID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/jobs/"), ":export")
+	if err := rejectTraversal(jobID); err != nil {
+		s.writeError(w, r, err, http.StatusBadRequest)
+		return
+	}
 	var req struct {
 		OutDir string `json:"out_dir"`
 	}
@@ -298,6 +302,10 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 	jobID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/jobs/"), ":verify")
+	if err := rejectTraversal(jobID); err != nil {
+		s.writeError(w, r, err, http.StatusBadRequest)
+		return
+	}
 	var req struct {
 		OutDir string `json:"out_dir"`
 	}
@@ -320,6 +328,10 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAccept(w http.ResponseWriter, r *http.Request) {
 	jobID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/jobs/"), ":accept")
+	if err := rejectTraversal(jobID); err != nil {
+		s.writeError(w, r, err, http.StatusBadRequest)
+		return
+	}
 	var req struct {
 		ConfigPath string `json:"config_path"`
 	}
@@ -346,6 +358,10 @@ func (s *Server) handleAccept(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleReportGitHub(w http.ResponseWriter, r *http.Request) {
 	jobID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/jobs/"), ":report-github")
+	if err := rejectTraversal(jobID); err != nil {
+		s.writeError(w, r, err, http.StatusBadRequest)
+		return
+	}
 	var req struct {
 		OutDir string `json:"out_dir"`
 	}
