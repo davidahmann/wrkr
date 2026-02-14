@@ -111,13 +111,14 @@ if [[ ! -x "$bin" ]]; then
 fi
 
 payload="$("$bin" --json version)"
-python3 - "$mode" "$expected" <<PY <<<"$payload"
+WRKR_VERSION_PAYLOAD="$payload" python3 - "$mode" "$expected" <<'PY'
 import json
+import os
 import sys
 
 mode = sys.argv[1]
 expected = sys.argv[2]
-payload = json.loads(sys.stdin.read())
+payload = json.loads(os.environ["WRKR_VERSION_PAYLOAD"])
 version = payload.get("version", "")
 
 if not version:

@@ -139,3 +139,11 @@ func TestSchemaPathWithExplicitRoot(t *testing.T) {
 		t.Fatalf("SchemaPath mismatch: got=%q want=%q", got, dst)
 	}
 }
+
+func TestSchemaPathWithExplicitRootMissing(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("WRKR_SCHEMA_ROOT", root)
+	if _, err := SchemaPath("jobpack/manifest.schema.json"); err == nil {
+		t.Fatal("expected SchemaPath missing file error")
+	}
+}
