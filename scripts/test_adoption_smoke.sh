@@ -56,6 +56,16 @@ json_get() {
   python3 -c "import json,sys; data=json.load(open(sys.argv[1])); print(${expr})" "$file"
 }
 
+contains_text() {
+  local needle="$1"
+  local file="$2"
+  if command -v rg >/dev/null 2>&1; then
+    rg -Fq -- "$needle" "$file"
+    return
+  fi
+  grep -Fq -- "$needle" "$file"
+}
+
 echo "[wrkr][adoption] stage=demo"
 HOME="$runtime_home" "$bin_path" --json demo --out-dir "$out_dir" > "$tmp_root/demo.json" 2> "$tmp_root/demo.err" || fail_stage demo "command failed"
 job_id="$(json_get "$tmp_root/demo.json" "data['job_id']")"
@@ -132,7 +142,7 @@ set -e
 if [[ "$wrap_exit" -eq 0 ]]; then
   fail_stage wrap "expected non-zero for failing wrapped command"
 fi
-if ! rg -q 'E_ADAPTER_FAIL' "$tmp_root/wrap.err"; then
+if ! contains_text 'E_ADAPTER_FAIL' "$tmp_root/wrap.err"; then
   fail_stage wrap "expected E_ADAPTER_FAIL in wrap stderr envelope"
 fi
 
