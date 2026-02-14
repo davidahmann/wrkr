@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path"
@@ -97,10 +98,22 @@ func normalizeSchemaRel(rel string) (string, error) {
 func readSchemaBytes(rel string) ([]byte, error) {
 	explicitRoot := strings.TrimSpace(os.Getenv("WRKR_SCHEMA_ROOT"))
 	if explicitRoot != "" {
-		p := filepath.Join(explicitRoot, filepath.FromSlash(rel))
-		payload, err := os.ReadFile(p)
+		root, err := os.OpenRoot(explicitRoot)
 		if err != nil {
+			return nil, fmt.Errorf("open schema root: %w", err)
+		}
+		defer func() { _ = root.Close() }()
+
+		f, err := root.Open(filepath.FromSlash(rel))
+		if err != nil {
+			p := filepath.Join(explicitRoot, filepath.FromSlash(rel))
 			return nil, fmt.Errorf("schema not found: %s: %w", p, err)
+		}
+		defer func() { _ = f.Close() }()
+
+		payload, err := io.ReadAll(f)
+		if err != nil {
+			return nil, fmt.Errorf("read schema %s: %w", rel, err)
 		}
 		return payload, nil
 	}
