@@ -130,7 +130,7 @@ if [[ "$skip_brew" == "true" ]]; then
 else
   run_step brew_tap brew tap davidahmann/tap || true
   run_step brew_update brew update || true
-  run_step brew_reinstall brew reinstall davidahmann/tap/wrkr || true
+  run_step brew_reinstall bash -c 'if brew list --versions davidahmann/tap/wrkr >/dev/null 2>&1; then brew reinstall davidahmann/tap/wrkr; else brew install davidahmann/tap/wrkr; fi' || true
   run_step brew_test_formula brew test davidahmann/tap/wrkr || true
 
   brew_prefix="$(brew --prefix)"
