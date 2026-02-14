@@ -14,6 +14,16 @@ bin_path="$tmp_root/wrkr"
 
 CGO_ENABLED=0 go build -o "$bin_path" ./cmd/wrkr
 
+contains_text() {
+  local needle="$1"
+  local file="$2"
+  if command -v rg >/dev/null 2>&1; then
+    rg -Fq -- "$needle" "$file"
+    return
+  fi
+  grep -Fq -- "$needle" "$file"
+}
+
 go test ./core/adapters/reference ./core/adapters/wrap ./core/bridge -count=1
 
 HOME="$runtime_home" "$bin_path" --json demo --out-dir "$out_dir" > "$tmp_root/demo.json"
@@ -24,7 +34,7 @@ if [[ ! -f "$out_dir/jobpacks/jobpack_${demo_job_id}.zip" ]]; then
 fi
 
 HOME="$runtime_home" "$bin_path" --json wrap --job-id job_adapter_parity_wrap --artifact reports/wrap.txt --out-dir "$out_dir" -- sh -lc 'printf wrapped > /dev/null' > "$tmp_root/wrap.json"
-if ! rg -q '"job_id": "job_adapter_parity_wrap"' "$tmp_root/wrap.json"; then
+if ! contains_text '"job_id": "job_adapter_parity_wrap"' "$tmp_root/wrap.json"; then
   echo "[wrkr][adapter parity] missing wrap job id payload"
   cat "$tmp_root/wrap.json"
   exit 1
