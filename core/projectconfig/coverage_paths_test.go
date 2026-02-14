@@ -97,6 +97,77 @@ func TestLoadJobSpecCoveragePaths(t *testing.T) {
 	}
 }
 
+func TestLoadJobSpecDefaultsMissingCollections(t *testing.T) {
+	wd := t.TempDir()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(wd); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(orig) })
+
+	minimal := `schema_id: wrkr.jobspec
+schema_version: v1
+created_at: "2026-02-14T12:50:00Z"
+producer_version: test
+name: minimal
+objective: minimal defaults
+inputs: null
+expected_artifacts: null
+adapter:
+  name: reference
+budgets:
+  max_wall_time_seconds: 60
+  max_retries: 1
+  max_step_count: 1
+  max_tool_calls: 1
+checkpoint_policy:
+  min_interval_seconds: 1
+  required_types: null
+environment_fingerprint:
+  rules: []
+`
+	if err := os.WriteFile("minimal_defaults.yaml", []byte(minimal), 0o600); err != nil {
+		t.Fatalf("write minimal jobspec: %v", err)
+	}
+
+	spec, err := LoadJobSpec("minimal_defaults.yaml")
+	if err != nil {
+		t.Fatalf("LoadJobSpec minimal defaults: %v", err)
+	}
+	if spec.Inputs == nil {
+		t.Fatal("expected defaults to set non-nil inputs")
+	}
+	if spec.ExpectedArtifacts == nil {
+		t.Fatal("expected defaults to set non-nil expected artifacts")
+	}
+	if spec.CheckpointPolicy.RequiredTypes == nil {
+		t.Fatal("expected defaults to set non-nil required types")
+	}
+}
+
+func TestInitAndLoadJobSpecRejectPathEscape(t *testing.T) {
+	wd := t.TempDir()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(wd); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(orig) })
+
+	now := time.Date(2026, 2, 14, 12, 55, 0, 0, time.UTC)
+	if _, err := InitJobSpec("../escape/jobspec.yaml", false, now, "test"); err == nil {
+		t.Fatal("expected InitJobSpec path escape to fail")
+	}
+	if _, err := LoadJobSpec("../escape/jobspec.yaml"); err == nil {
+		t.Fatal("expected LoadJobSpec path escape to fail")
+	}
+}
+
 func TestNormalizeYAMLAndResolvePathCoverage(t *testing.T) {
 	value := map[any]any{
 		"root": []any{
