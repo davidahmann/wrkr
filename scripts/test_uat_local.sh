@@ -93,6 +93,53 @@ run_step() {
   return 1
 }
 
+run_version_step() {
+  local step_name="$1"
+  local bin_path="$2"
+  local mode="$3"
+  local expected="${4:-}"
+
+  run_step "$step_name" bash -c '
+set -euo pipefail
+bin="$1"
+mode="$2"
+expected="$3"
+
+if [[ ! -x "$bin" ]]; then
+  echo "binary is not executable: $bin" >&2
+  exit 1
+fi
+
+payload="$("$bin" --json version)"
+python3 - "$mode" "$expected" <<PY <<<"$payload"
+import json
+import sys
+
+mode = sys.argv[1]
+expected = sys.argv[2]
+payload = json.loads(sys.stdin.read())
+version = payload.get("version", "")
+
+if not version:
+    raise SystemExit("version field missing")
+
+if mode == "exact":
+    if version != expected:
+        raise SystemExit(f"expected version {expected}, got {version}")
+elif mode == "non-dev":
+    if version == "dev":
+        raise SystemExit("expected a release version, got dev")
+elif mode == "dev":
+    if version != "dev":
+        raise SystemExit(f"expected version dev, got {version}")
+else:
+    raise SystemExit(f"unknown mode: {mode}")
+
+print(version)
+PY
+' _ "$bin_path" "$mode" "$expected"
+}
+
 if ! command -v go >/dev/null 2>&1; then
   echo "error: go is required" >&2
   exit 2
@@ -114,6 +161,7 @@ release_bin="${output_dir}/release_install/bin/wrkr"
 mkdir -p "$(dirname "$source_bin")"
 
 run_step source_build go build -o "$source_bin" ./cmd/wrkr || true
+run_version_step source_version "$source_bin" dev || true
 run_step source_adoption_smoke bash "$repo_root/scripts/test_adoption_smoke.sh" "$source_bin" || true
 run_step adapter_parity bash "$repo_root/scripts/test_adapter_parity.sh" || true
 
@@ -122,6 +170,11 @@ if [[ "$skip_release_installer" == "true" ]]; then
 else
   mkdir -p "$(dirname "$release_bin")"
   run_step release_install bash "$repo_root/scripts/install.sh" --version "$release_version" --install-dir "$(dirname "$release_bin")" || true
+  if [[ "$release_version" == "latest" ]]; then
+    run_version_step release_version "$release_bin" non-dev || true
+  else
+    run_version_step release_version "$release_bin" exact "${release_version#v}" || true
+  fi
   run_step release_adoption_smoke bash "$repo_root/scripts/test_adoption_smoke.sh" "$release_bin" || true
 fi
 
@@ -135,6 +188,11 @@ else
 
   brew_prefix="$(brew --prefix)"
   brew_bin="${brew_prefix}/bin/wrkr"
+  if [[ "$release_version" == "latest" ]]; then
+    run_version_step brew_version "$brew_bin" non-dev || true
+  else
+    run_version_step brew_version "$brew_bin" exact "${release_version#v}" || true
+  fi
   run_step brew_adoption_smoke bash "$repo_root/scripts/test_adoption_smoke.sh" "$brew_bin" || true
 fi
 

@@ -77,16 +77,27 @@ func RunWithOptions(opts Options) (Result, error) {
 		results = append(results, pass("output_layout", layout.Root()))
 	}
 
+	compiled := 0
 	missing := 0
+	var firstSchemaErr error
 	for _, rel := range validate.SchemaList() {
-		if _, err := validate.SchemaPath(rel); err != nil {
+		if _, err := validate.Compile(rel); err != nil {
 			missing++
+			if firstSchemaErr == nil {
+				firstSchemaErr = err
+			}
+			continue
 		}
+		compiled++
 	}
 	if missing == 0 {
-		results = append(results, pass("schemas", "missing=0"))
+		results = append(results, pass("schemas", "compiled="+itoa(compiled)))
 	} else {
-		results = append(results, failCritical("schemas", "missing="+itoa(missing), "Restore missing files under ./schemas/v1 and rerun."))
+		details := "compiled=" + itoa(compiled) + " missing=" + itoa(missing)
+		if firstSchemaErr != nil {
+			details += " first_error=" + firstSchemaErr.Error()
+		}
+		results = append(results, failCritical("schemas", details, "Restore missing schema resources and rerun."))
 	}
 
 	hookPath := filepath.Clean(".githooks/pre-push")
