@@ -126,7 +126,7 @@ jobs:
         run: grype sbom:./dist/wrkr.sbom.spdx.json -o sarif > ./dist/wrkr.vuln.sarif
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@f713795cb21599bc4e5c4b58cbad1da852d7eeb9
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac
 
       - name: Sign checksums with keyless cosign
         env:
